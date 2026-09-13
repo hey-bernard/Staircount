@@ -55,6 +55,17 @@
         <label for="stepSize">한 번 누를 때 계단 수</label>
         <input type="number" id="stepSize" min="1" max="99" value="1" />
       </div>
+
+      <div class="motion-block">
+        <button id="autoDetectBtn" class="ghost-btn">📡 자동 감지 시작 (가속도·자이로 센서)</button>
+
+        <div class="auto-direction" id="autoDirectionGroup" hidden>
+          <button type="button" class="auto-dir-btn up active" id="autoDirUpBtn">⬆️ 지금 오르는 중</button>
+          <button type="button" class="auto-dir-btn down" id="autoDirDownBtn">⬇️ 지금 내리는 중</button>
+        </div>
+
+        <div class="motion-status" id="motionStatus" hidden></div>
+      </div>
     </section>
 
     <!-- 무릎 안전 & 자세 가이드 -->

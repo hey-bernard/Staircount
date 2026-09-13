@@ -33,6 +33,16 @@
   const COACH_TIP_INTERVAL_SEC = 8;
   const FAST_DOWN_PACE_MULT = 1.4; // "빠름" tier and above triggers the slow-down warning
 
+  // Step detection from devicemotion's accelerationIncludingGravity magnitude:
+  // a footstep shows up as a brief spike above a slow-moving baseline (which
+  // tracks gravity + the phone's average orientation). Direction (up/down)
+  // can't be derived from the accelerometer alone, so the user selects it.
+  const STEP_THRESHOLD = 1.2; // m/s^2 deviation from baseline that counts as a step
+  const STEP_RESET_THRESHOLD = 0.5; // deviation must fall back below this before the next step can fire
+  const STEP_MIN_INTERVAL_MS = 250; // fastest plausible step cadence guard
+  const BASELINE_SMOOTHING = 0.85; // low-pass filter coefficient tracking gravity/orientation
+  const MOTION_DATA_TIMEOUT_MS = 3000; // how long to wait for a first sensor reading before warning
+
   const el = (id) => document.getElementById(id);
 
   const timerDisplay = el("timerDisplay");
@@ -71,6 +81,12 @@
   const healthSyncedAtEl = el("healthSyncedAt");
   const healthSyncBtn = el("healthSyncBtn");
 
+  const autoDetectBtn = el("autoDetectBtn");
+  const autoDirectionGroup = el("autoDirectionGroup");
+  const autoDirUpBtn = el("autoDirUpBtn");
+  const autoDirDownBtn = el("autoDirDownBtn");
+  const motionStatus = el("motionStatus");
+
   const summaryModal = el("summaryModal");
   const summaryBody = el("summaryBody");
   const closeSummaryBtn = el("closeSummaryBtn");
@@ -84,6 +100,18 @@
 
   let current = null; // { startedAt, up, down, actions: [{type:'up'|'down', amount:number}] }
   let timerInterval = null;
+
+  const motionState = {
+    active: false,
+    direction: "up", // which counter detected steps add to
+    baseline: null,
+    aboveThreshold: false,
+    lastStepAt: 0,
+    detectedSteps: 0,
+    firstEventAt: 0,
+    gotFirstEvent: false,
+    watchdogTimer: null,
+  };
 
   function loadSessions() {
     try {
@@ -158,6 +186,9 @@
     if (!current) return;
     clearInterval(timerInterval);
     timerInterval = null;
+    if (motionState.active) {
+      stopAutoDetect();
+    }
 
     const session = {
       id: `${current.startedAt}-${Math.random().toString(36).slice(2, 8)}`,
@@ -474,6 +505,128 @@
     }
   }
 
+  /**
+   * Peak-detects footsteps in the combined accelerationIncludingGravity
+   * magnitude: a step shows up as a brief spike above a slow-adapting
+   * baseline that tracks gravity/orientation. Hysteresis (rise above
+   * STEP_THRESHOLD, must fall back below STEP_RESET_THRESHOLD) plus a
+   * minimum interval keeps one physical step from firing multiple counts.
+   */
+  function handleDeviceMotion(event) {
+    const acc = event.accelerationIncludingGravity;
+    if (!acc || acc.x === null || acc.x === undefined) return;
+
+    if (!motionState.gotFirstEvent) {
+      motionState.gotFirstEvent = true;
+      clearTimeout(motionState.watchdogTimer);
+    }
+
+    const magnitude = Math.sqrt((acc.x || 0) ** 2 + (acc.y || 0) ** 2 + (acc.z || 0) ** 2);
+
+    if (motionState.baseline === null) {
+      motionState.baseline = magnitude;
+      return;
+    }
+
+    const deviation = Math.abs(magnitude - motionState.baseline);
+    const now = Date.now();
+
+    if (
+      !motionState.aboveThreshold &&
+      deviation > STEP_THRESHOLD &&
+      now - motionState.lastStepAt > STEP_MIN_INTERVAL_MS
+    ) {
+      // Step peak: count it and freeze the baseline so the spike itself
+      // doesn't drag the baseline toward it and mask the very next step.
+      motionState.aboveThreshold = true;
+      motionState.lastStepAt = now;
+      motionState.detectedSteps += 1;
+      addCount(motionState.direction);
+      updateMotionStatus();
+      return;
+    }
+
+    if (motionState.aboveThreshold) {
+      if (deviation < STEP_RESET_THRESHOLD) {
+        motionState.aboveThreshold = false;
+        motionState.baseline = motionState.baseline * BASELINE_SMOOTHING + magnitude * (1 - BASELINE_SMOOTHING);
+      }
+      return; // still settling from the last spike; hold the baseline
+    }
+
+    motionState.baseline = motionState.baseline * BASELINE_SMOOTHING + magnitude * (1 - BASELINE_SMOOTHING);
+  }
+
+  function updateMotionStatus() {
+    motionStatus.hidden = false;
+    motionStatus.classList.remove("warning");
+    motionStatus.textContent = `센서 연결됨 · 감지된 걸음 ${motionState.detectedSteps}`;
+  }
+
+  async function startAutoDetect() {
+    if (typeof DeviceMotionEvent === "undefined") {
+      motionStatus.hidden = false;
+      motionStatus.classList.add("warning");
+      motionStatus.textContent = "이 기기/브라우저는 동작 센서를 지원하지 않아요. 수동으로 탭해주세요.";
+      return;
+    }
+
+    if (typeof DeviceMotionEvent.requestPermission === "function") {
+      let result;
+      try {
+        result = await DeviceMotionEvent.requestPermission();
+      } catch {
+        result = "denied";
+      }
+      if (result !== "granted") {
+        motionStatus.hidden = false;
+        motionStatus.classList.add("warning");
+        motionStatus.textContent = "센서 접근 권한이 거부됐어요. 설정 > Safari > 모션 및 방향 접근을 확인해주세요.";
+        return;
+      }
+    }
+
+    motionState.active = true;
+    motionState.baseline = null;
+    motionState.aboveThreshold = false;
+    motionState.detectedSteps = 0;
+    motionState.gotFirstEvent = false;
+
+    window.addEventListener("devicemotion", handleDeviceMotion);
+
+    motionState.watchdogTimer = setTimeout(() => {
+      if (!motionState.gotFirstEvent) {
+        motionStatus.hidden = false;
+        motionStatus.classList.add("warning");
+        motionStatus.textContent = "센서 데이터를 받지 못했어요. 기기가 지원하지 않거나 권한이 꺼져 있을 수 있어요.";
+      }
+    }, MOTION_DATA_TIMEOUT_MS);
+
+    autoDetectBtn.textContent = "⏹️ 자동 감지 중지";
+    autoDetectBtn.classList.add("active");
+    autoDirectionGroup.hidden = false;
+    motionStatus.hidden = false;
+    motionStatus.classList.remove("warning");
+    motionStatus.textContent = "센서 연결 중...";
+  }
+
+  function stopAutoDetect() {
+    motionState.active = false;
+    clearTimeout(motionState.watchdogTimer);
+    window.removeEventListener("devicemotion", handleDeviceMotion);
+
+    autoDetectBtn.textContent = "📡 자동 감지 시작 (가속도·자이로 센서)";
+    autoDetectBtn.classList.remove("active");
+    autoDirectionGroup.hidden = true;
+    motionStatus.hidden = true;
+  }
+
+  function setAutoDirection(direction) {
+    motionState.direction = direction;
+    autoDirUpBtn.classList.toggle("active", direction === "up");
+    autoDirDownBtn.classList.toggle("active", direction === "down");
+  }
+
   // Event listeners
   upBtn.addEventListener("click", () => addCount("up"));
   downBtn.addEventListener("click", () => addCount("down"));
@@ -512,6 +665,17 @@
   });
 
   healthSyncBtn.addEventListener("click", syncHealthData);
+
+  autoDetectBtn.addEventListener("click", () => {
+    if (motionState.active) {
+      stopAutoDetect();
+    } else {
+      startAutoDetect();
+    }
+  });
+
+  autoDirUpBtn.addEventListener("click", () => setAutoDirection("up"));
+  autoDirDownBtn.addEventListener("click", () => setAutoDirection("down"));
 
   resetDataBtn.addEventListener("click", () => {
     if (confirm("모든 운동 기록을 삭제할까요? 이 작업은 되돌릴 수 없습니다.")) {

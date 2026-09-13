@@ -86,6 +86,10 @@ h1, h2 {
   text-wrap: balance;
 }
 
+[hidden] {
+  display: none !important;
+}
+
 /* ---------- Header ---------- */
 
 .topbar {
@@ -386,6 +390,65 @@ main {
   text-align: center;
   font-family: var(--font-display);
   font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Motion sensor auto-detect ---------- */
+
+.motion-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--line);
+}
+
+#autoDetectBtn.active {
+  background: var(--accent);
+  color: var(--surface);
+  border-color: var(--accent);
+}
+
+.auto-direction {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.auto-dir-btn {
+  border: 1px solid var(--line);
+  background: var(--bg);
+  color: var(--muted);
+  border-radius: var(--radius-sm);
+  padding: 0.55rem 0.9rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.auto-dir-btn.active.up {
+  background: var(--up-soft);
+  color: var(--up);
+  border-color: var(--up);
+}
+
+.auto-dir-btn.active.down {
+  background: var(--down-soft);
+  color: var(--down);
+  border-color: var(--down);
+}
+
+.motion-status {
+  font-size: 0.78rem;
+  color: var(--muted);
+  font-weight: 500;
+  text-align: center;
+  line-height: 1.5;
+}
+
+.motion-status.warning {
+  color: var(--danger);
 }
 
 /* ---------- Health sync ---------- */
