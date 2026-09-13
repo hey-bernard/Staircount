@@ -178,6 +178,60 @@ main {
   color: var(--muted);
 }
 
+/* ---------- Guide card ---------- */
+
+.guide-item {
+  border-top: 1px solid var(--line);
+  padding: 0.7rem 0;
+}
+
+.guide-item:first-of-type {
+  border-top: none;
+  padding-top: 0;
+}
+
+.guide-item summary {
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 0.92rem;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.guide-item summary::-webkit-details-marker {
+  display: none;
+}
+
+.guide-item summary::after {
+  content: "+";
+  font-family: var(--font-display);
+  color: var(--muted);
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.guide-item[open] summary::after {
+  content: "\2212";
+}
+
+.guide-item ul {
+  margin: 0.6rem 0 0;
+  padding-left: 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  font-size: 0.87rem;
+  line-height: 1.5;
+  color: var(--ink);
+}
+
+.guide-item ul strong {
+  color: var(--up);
+}
+
 /* ---------- Session card ---------- */
 
 .session-card {
@@ -195,9 +249,25 @@ main {
 
 .session-status {
   color: var(--muted);
-  margin-bottom: 1.1rem;
   font-size: 0.9rem;
   font-weight: 500;
+}
+
+.coach-tip {
+  margin: 0.4rem 0 1.1rem;
+  padding: 0.55rem 0.75rem;
+  border-radius: var(--radius-sm);
+  background: var(--down-soft);
+  color: var(--down);
+  font-size: 0.82rem;
+  font-weight: 600;
+  line-height: 1.4;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.coach-tip.warning {
+  background: var(--up-soft);
+  color: var(--danger);
 }
 
 .counters {

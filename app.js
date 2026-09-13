@@ -22,10 +22,22 @@
   const MIN_DURATION_MIN = 0.1; // guards against divide-by-zero on near-instant taps
   const DOWN_PACE_SENSITIVITY = 0.4; // descending intensity scales at 40% of climbing's
 
+  // In-workout coaching cues, rotated while a session is running.
+  const COACH_TIPS = [
+    "💡 올라갈 때: 발 전체를 딛고, 무릎을 발끝 방향으로 유지하세요",
+    "💡 올라갈 때: 반동 대신 엉덩이 힘으로 밀어 올리세요",
+    "💡 내려갈 때: 서두르지 말고 무릎을 살짝 굽힌 채로 받아내세요",
+    "💡 내려갈 때: 무릎이 안쪽으로 무너지지 않게 주의하세요",
+    "💡 무릎 안쪽·슬개골에 통증이 오면 즉시 멈추세요",
+  ];
+  const COACH_TIP_INTERVAL_SEC = 8;
+  const FAST_DOWN_PACE_MULT = 1.4; // "빠름" tier and above triggers the slow-down warning
+
   const el = (id) => document.getElementById(id);
 
   const timerDisplay = el("timerDisplay");
   const sessionStatus = el("sessionStatus");
+  const coachTip = el("coachTip");
   const upBtn = el("upBtn");
   const downBtn = el("downBtn");
   const upCountEl = el("upCount");
@@ -158,6 +170,8 @@
     startStopBtn.classList.remove("stop");
     sessionStatus.textContent = "운동을 시작해보세요";
     timerDisplay.textContent = "00:00";
+    coachTip.textContent = "💡 시작 전 5분, 발목·무릎 가볍게 풀어주세요";
+    coachTip.classList.remove("warning");
     renderCurrentCounts();
     renderAll();
   }
@@ -170,10 +184,31 @@
     const elapsedSec = (now - current.startedAt) / 1000;
     if (elapsedSec < 5 || current.up + current.down === 0) {
       sessionStatus.textContent = "운동 중...";
+      updateCoachTip(elapsedSec, null);
       return;
     }
     const { stepsPerMinute, tier } = paceInfo({ ...current, endedAt: now });
     sessionStatus.textContent = `운동 중 · ${tier.label} 페이스 (${Math.round(stepsPerMinute)}걸음/분)`;
+    updateCoachTip(elapsedSec, tier);
+  }
+
+  /**
+   * Warns when the most recent step was a fast descent (highest knee impact);
+   * otherwise rotates through general form reminders.
+   */
+  function updateCoachTip(elapsedSec, tier) {
+    const lastAction = current.actions[current.actions.length - 1];
+    const descendingFast = lastAction && lastAction.type === "down" && tier && tier.mult >= FAST_DOWN_PACE_MULT;
+
+    if (descendingFast) {
+      coachTip.textContent = "⚠️ 내려가는 속도가 빠릅니다 — 천천히, 무릎을 살짝 굽혀 받으세요";
+      coachTip.classList.add("warning");
+      return;
+    }
+
+    coachTip.classList.remove("warning");
+    const tipIndex = Math.floor(elapsedSec / COACH_TIP_INTERVAL_SEC) % COACH_TIPS.length;
+    coachTip.textContent = COACH_TIPS[tipIndex];
   }
 
   function getStepSize() {
@@ -190,6 +225,7 @@
     current.actions.push({ type, amount });
     undoBtn.disabled = false;
     renderCurrentCounts();
+    updateTimer();
   }
 
   function undoLast() {
@@ -198,6 +234,7 @@
     current[last.type] -= last.amount;
     undoBtn.disabled = current.actions.length === 0;
     renderCurrentCounts();
+    updateTimer();
   }
 
   function renderCurrentCounts() {

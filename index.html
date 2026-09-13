@@ -31,6 +31,7 @@
     <section class="card session-card">
       <div class="timer" id="timerDisplay">00:00</div>
       <div class="session-status" id="sessionStatus">운동을 시작해보세요</div>
+      <div class="coach-tip" id="coachTip">💡 시작 전 5분, 발목·무릎 가볍게 풀어주세요</div>
 
       <div class="counters">
         <button class="count-btn up" id="upBtn">
@@ -54,6 +55,48 @@
         <label for="stepSize">한 번 누를 때 계단 수</label>
         <input type="number" id="stepSize" min="1" max="99" value="1" />
       </div>
+    </section>
+
+    <!-- 무릎 안전 & 자세 가이드 -->
+    <section class="card guide-card">
+      <h2>무릎 안전 &amp; 자세 가이드</h2>
+
+      <details class="guide-item" open>
+        <summary>⬇️ 내려갈 때 — 무릎에 가장 중요한 순간</summary>
+        <ul>
+          <li>서두르지 말고 <strong>무릎을 살짝 굽힌 채로</strong> 받아내세요 (편 채로 쿵 착지 금지)</li>
+          <li>무릎이 <strong>안쪽으로 무너지지 않게</strong> — 무릎이 항상 발끝 방향을 향하게</li>
+          <li>가능하면 한 계단씩, 두 칸씩 건너뛰며 내려가지 않기</li>
+          <li>발뒤꿈치까지 확실히 디뎌 충격을 발 전체로 분산</li>
+        </ul>
+      </details>
+
+      <details class="guide-item">
+        <summary>⬆️ 올라갈 때</summary>
+        <ul>
+          <li>발 전체를 계단에 딛기 (발끝만 걸치지 않기)</li>
+          <li>무릎-발끝 일직선 유지, 반동 대신 <strong>엉덩이 힘</strong>으로 밀어올리기</li>
+          <li>허리는 곧게, 난간은 균형용으로만 살짝 잡기</li>
+        </ul>
+      </details>
+
+      <details class="guide-item">
+        <summary>🚩 이럴 땐 즉시 중단</summary>
+        <ul>
+          <li>계단 중간에 무릎이 훅 꺾이는 불안정감</li>
+          <li>디딜 때 무릎 안쪽·슬개골 주변 찌릿한 통증</li>
+          <li>다음날 아침까지 남는 붓기·통증</li>
+        </ul>
+      </details>
+
+      <details class="guide-item">
+        <summary>📋 이런 경우는 시작 전 전문가 상담</summary>
+        <ul>
+          <li>반월판·인대(ACL/MCL) 손상 또는 무릎 수술 이력</li>
+          <li>무릎 관절염 진단 이력</li>
+          <li>이미 계단 이용 시 통증이 있음</li>
+        </ul>
+      </details>
     </section>
 
     <!-- 오늘/전체 통계 -->
