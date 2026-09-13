@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#0f172a" />
+<title>계단오르기 - Staircount</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <h1>🏃 계단오르기</h1>
+    <button id="settingsBtn" class="icon-btn" aria-label="설정" title="설정">⚙️</button>
+  </header>
+
+  <main>
+    <!-- 현재 세션 -->
+    <section class="card session-card">
+      <div class="timer" id="timerDisplay">00:00</div>
+      <div class="session-status" id="sessionStatus">운동을 시작해보세요</div>
+
+      <div class="counters">
+        <button class="count-btn up" id="upBtn">
+          <span class="count-icon">⬆️</span>
+          <span class="count-label">오르기</span>
+          <span class="count-value" id="upCount">0</span>
+        </button>
+        <button class="count-btn down" id="downBtn">
+          <span class="count-icon">⬇️</span>
+          <span class="count-label">내리기</span>
+          <span class="count-value" id="downCount">0</span>
+        </button>
+      </div>
+
+      <div class="session-actions">
+        <button id="undoBtn" class="ghost-btn" disabled>↩️ 실행취소</button>
+        <button id="startStopBtn" class="primary-btn">▶️ 운동 시작</button>
+      </div>
+
+      <div class="step-size-row">
+        <label for="stepSize">한 번 누를 때 계단 수</label>
+        <input type="number" id="stepSize" min="1" max="99" value="1" />
+      </div>
+    </section>
+
+    <!-- 오늘/전체 통계 -->
+    <section class="card stats-card">
+      <h2>통계</h2>
+      <div class="stats-grid">
+        <div class="stat">
+          <div class="stat-label">오늘 오른 계단</div>
+          <div class="stat-value" id="todayUp">0</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">오늘 내린 계단</div>
+          <div class="stat-value" id="todayDown">0</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">이번 주 오른 계단</div>
+          <div class="stat-value" id="weekUp">0</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">이번 주 내린 계단</div>
+          <div class="stat-value" id="weekDown">0</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">누적 오른 계단</div>
+          <div class="stat-value" id="totalUp">0</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">누적 내린 계단</div>
+          <div class="stat-value" id="totalDown">0</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">오늘 소모 칼로리</div>
+          <div class="stat-value" id="todayCalories">0 kcal</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">누적 소모 칼로리</div>
+          <div class="stat-value" id="totalCalories">0 kcal</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 최근 7일 그래프 -->
+    <section class="card chart-card">
+      <h2>최근 7일</h2>
+      <canvas id="weekChart" width="600" height="220"></canvas>
+      <div class="legend">
+        <span class="legend-item"><span class="dot up"></span>오르기</span>
+        <span class="legend-item"><span class="dot down"></span>내리기</span>
+      </div>
+    </section>
+
+    <!-- 기록 목록 -->
+    <section class="card history-card">
+      <h2>운동 기록</h2>
+      <ul id="historyList" class="history-list">
+        <li class="empty-msg" id="emptyHistoryMsg">아직 기록이 없어요. 운동을 시작해보세요!</li>
+      </ul>
+    </section>
+  </main>
+
+  <!-- 설정 모달 -->
+  <div id="settingsModal" class="modal hidden">
+    <div class="modal-content">
+      <h2>설정</h2>
+      <label for="weightInput">체중 (kg) — 칼로리 계산에 사용</label>
+      <input type="number" id="weightInput" min="20" max="200" value="60" />
+      <div class="modal-actions">
+        <button id="resetDataBtn" class="danger-btn">모든 기록 삭제</button>
+        <button id="closeSettingsBtn" class="primary-btn">닫기</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 세션 종료 요약 모달 -->
+  <div id="summaryModal" class="modal hidden">
+    <div class="modal-content">
+      <h2>운동 완료! 🎉</h2>
+      <div id="summaryBody" class="summary-body"></div>
+      <div class="modal-actions">
+        <button id="closeSummaryBtn" class="primary-btn">확인</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

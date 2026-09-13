@@ -1,0 +1,396 @@
+:root {
+  color-scheme: light dark;
+  --bg: #f5f6fa;
+  --card-bg: #ffffff;
+  --text: #1a1d29;
+  --text-muted: #6b7280;
+  --border: #e5e7eb;
+  --up: #16a34a;
+  --up-bg: #dcfce7;
+  --down: #2563eb;
+  --down-bg: #dbeafe;
+  --primary: #4f46e5;
+  --danger: #dc2626;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0f1117;
+    --card-bg: #1a1d29;
+    --text: #f3f4f6;
+    --text-muted: #9ca3af;
+    --border: #2d3140;
+    --up-bg: #103d20;
+    --down-bg: #0f2a4d;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Pretendard", "Malgun Gothic", sans-serif;
+  padding-bottom: 2rem;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.25rem;
+  position: sticky;
+  top: 0;
+  background: var(--bg);
+  z-index: 10;
+}
+
+.topbar h1 {
+  font-size: 1.25rem;
+  margin: 0;
+}
+
+.icon-btn {
+  background: none;
+  border: none;
+  font-size: 1.4rem;
+  cursor: pointer;
+  padding: 0.25rem 0.5rem;
+}
+
+main {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 0 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.card {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 1.25rem;
+}
+
+.card h2 {
+  margin: 0 0 0.75rem;
+  font-size: 1rem;
+  color: var(--text-muted);
+}
+
+.session-card {
+  text-align: center;
+}
+
+.timer {
+  font-size: 2.5rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.05em;
+}
+
+.session-status {
+  color: var(--text-muted);
+  margin-bottom: 1rem;
+  font-size: 0.9rem;
+}
+
+.counters {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.count-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 1.25rem 0.5rem;
+  border-radius: 16px;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.08s ease;
+}
+
+.count-btn:active {
+  transform: scale(0.96);
+}
+
+.count-btn.up {
+  background: var(--up-bg);
+  color: var(--up);
+}
+
+.count-btn.down {
+  background: var(--down-bg);
+  color: var(--down);
+}
+
+.count-icon {
+  font-size: 1.75rem;
+}
+
+.count-label {
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.count-value {
+  font-size: 2rem;
+  font-weight: 800;
+}
+
+.session-actions {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: center;
+  margin-bottom: 1rem;
+}
+
+.primary-btn, .ghost-btn, .danger-btn {
+  border: none;
+  border-radius: 12px;
+  padding: 0.75rem 1.25rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.primary-btn {
+  background: var(--primary);
+  color: white;
+}
+
+.primary-btn.stop {
+  background: var(--danger);
+}
+
+.ghost-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+
+.ghost-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.danger-btn {
+  background: transparent;
+  border: 1px solid var(--danger);
+  color: var(--danger);
+}
+
+.step-size-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.step-size-row input {
+  width: 4rem;
+  padding: 0.4rem;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  text-align: center;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+
+.stat {
+  background: var(--bg);
+  border-radius: 12px;
+  padding: 0.75rem;
+}
+
+.stat-label {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-bottom: 0.25rem;
+}
+
+.stat-value {
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.chart-card canvas {
+  width: 100%;
+  height: auto;
+  max-width: 100%;
+}
+
+.legend {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  margin-top: 0.5rem;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.dot.up {
+  background: var(--up);
+}
+
+.dot.down {
+  background: var(--down);
+}
+
+.history-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.history-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  background: var(--bg);
+  border-radius: 12px;
+  padding: 0.75rem;
+}
+
+.history-item .h-date {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.history-item .h-main {
+  flex: 1;
+}
+
+.history-item .h-counts {
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin-top: 0.15rem;
+}
+
+.history-item .h-counts .up-txt {
+  color: var(--up);
+}
+
+.history-item .h-counts .down-txt {
+  color: var(--down);
+}
+
+.history-item .h-delete {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 1.1rem;
+  cursor: pointer;
+  padding: 0.25rem;
+}
+
+.empty-msg {
+  color: var(--text-muted);
+  text-align: center;
+  padding: 1rem 0;
+  font-size: 0.9rem;
+}
+
+.modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  z-index: 100;
+}
+
+.modal.hidden {
+  display: none;
+}
+
+.modal-content {
+  background: var(--card-bg);
+  border-radius: 16px;
+  padding: 1.5rem;
+  max-width: 400px;
+  width: 100%;
+}
+
+.modal-content h2 {
+  margin-top: 0;
+}
+
+.modal-content label {
+  display: block;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin-bottom: 0.35rem;
+}
+
+.modal-content input {
+  width: 100%;
+  padding: 0.6rem;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  margin-bottom: 1rem;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.summary-body {
+  font-size: 0.95rem;
+  line-height: 1.8;
+}
+
+.summary-body .up-txt {
+  color: var(--up);
+  font-weight: 700;
+}
+
+.summary-body .down-txt {
+  color: var(--down);
+  font-weight: 700;
+}
