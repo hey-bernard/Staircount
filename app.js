@@ -63,6 +63,13 @@
   const closeSettingsBtn = el("closeSettingsBtn");
   const resetDataBtn = el("resetDataBtn");
   const weightInput = el("weightInput");
+  const healthWorkerUrlInput = el("healthWorkerUrl");
+  const healthSyncTokenInput = el("healthSyncToken");
+
+  const healthFlightsEl = el("healthFlights");
+  const healthStepsEl = el("healthSteps");
+  const healthSyncedAtEl = el("healthSyncedAt");
+  const healthSyncBtn = el("healthSyncBtn");
 
   const summaryModal = el("summaryModal");
   const summaryBody = el("summaryBody");
@@ -92,11 +99,12 @@
   }
 
   function loadSettings() {
+    const defaults = { weight: 60, healthWorkerUrl: "", healthSyncToken: "" };
     try {
       const raw = localStorage.getItem(SETTINGS_KEY);
-      return raw ? JSON.parse(raw) : { weight: 60 };
+      return raw ? { ...defaults, ...JSON.parse(raw) } : defaults;
     } catch {
-      return { weight: 60 };
+      return defaults;
     }
   }
 
@@ -417,6 +425,55 @@
     renderChart();
   }
 
+  /**
+   * Pulls today's Apple Health "Flights Climbed" / "Steps" from the
+   * Cloudflare Worker bridge (fed by an iOS Shortcuts automation).
+   * See healthsync/README.md for how the bridge is set up.
+   */
+  async function syncHealthData() {
+    const url = settings.healthWorkerUrl.trim();
+    const token = settings.healthSyncToken.trim();
+
+    if (!url) {
+      healthSyncedAtEl.textContent = "설정에서 연동 주소를 먼저 입력해주세요";
+      return;
+    }
+
+    healthSyncedAtEl.textContent = "동기화 중...";
+    try {
+      const today = new Date().toISOString().slice(0, 10);
+      const res = await fetch(`${url.replace(/\/$/, "")}/latest?date=${today}`, {
+        headers: { "X-Sync-Token": token },
+      });
+
+      if (res.status === 401) {
+        healthSyncedAtEl.textContent = "인증 실패 — 토큰을 확인해주세요";
+        return;
+      }
+      if (!res.ok) {
+        healthSyncedAtEl.textContent = "동기화 실패 — 잠시 후 다시 시도해주세요";
+        return;
+      }
+
+      const data = await res.json();
+      if (!data) {
+        healthFlightsEl.textContent = "—";
+        healthStepsEl.textContent = "—";
+        healthSyncedAtEl.textContent = "오늘 아직 전송된 데이터가 없어요";
+        return;
+      }
+
+      healthFlightsEl.textContent = `${data.flightsClimbed}층`;
+      healthStepsEl.textContent = `${data.steps}보`;
+      const syncedTime = new Intl.DateTimeFormat("ko-KR", { hour: "2-digit", minute: "2-digit" }).format(
+        data.syncedAt
+      );
+      healthSyncedAtEl.textContent = `마지막 동기화: ${syncedTime}`;
+    } catch {
+      healthSyncedAtEl.textContent = "연동 주소에 연결할 수 없어요";
+    }
+  }
+
   // Event listeners
   upBtn.addEventListener("click", () => addCount("up"));
   downBtn.addEventListener("click", () => addCount("down"));
@@ -432,6 +489,8 @@
 
   settingsBtn.addEventListener("click", () => {
     weightInput.value = settings.weight;
+    healthWorkerUrlInput.value = settings.healthWorkerUrl;
+    healthSyncTokenInput.value = settings.healthSyncToken;
     settingsModal.classList.remove("hidden");
   });
 
@@ -439,11 +498,20 @@
     const w = parseInt(weightInput.value, 10);
     if (Number.isFinite(w) && w > 0) {
       settings.weight = w;
-      saveSettings();
     }
+    const urlChanged = settings.healthWorkerUrl !== healthWorkerUrlInput.value.trim();
+    const tokenChanged = settings.healthSyncToken !== healthSyncTokenInput.value.trim();
+    settings.healthWorkerUrl = healthWorkerUrlInput.value.trim();
+    settings.healthSyncToken = healthSyncTokenInput.value.trim();
+    saveSettings();
     settingsModal.classList.add("hidden");
     renderAll();
+    if ((urlChanged || tokenChanged) && settings.healthWorkerUrl) {
+      syncHealthData();
+    }
   });
+
+  healthSyncBtn.addEventListener("click", syncHealthData);
 
   resetDataBtn.addEventListener("click", () => {
     if (confirm("모든 운동 기록을 삭제할까요? 이 작업은 되돌릴 수 없습니다.")) {
@@ -460,4 +528,7 @@
 
   weightInput.value = settings.weight;
   renderAll();
+  if (settings.healthWorkerUrl) {
+    syncHealthData();
+  }
 })();

@@ -99,6 +99,26 @@
       </details>
     </section>
 
+    <!-- 건강 앱 연동 (단축어 브릿지로 자동 동기화된 값) -->
+    <section class="card health-card">
+      <h2>건강 앱 연동</h2>
+      <div class="health-grid">
+        <div class="stat">
+          <div class="stat-label">오늘 오른 층수 (Health)</div>
+          <div class="stat-value" id="healthFlights">—</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">오늘 걸음 수 (Health)</div>
+          <div class="stat-value" id="healthSteps">—</div>
+        </div>
+      </div>
+      <div class="health-footer">
+        <span class="health-synced" id="healthSyncedAt">아직 연동되지 않았어요</span>
+        <button id="healthSyncBtn" class="ghost-btn">🔄 지금 동기화</button>
+      </div>
+      <p class="health-note">* Apple Health는 내려간 층수는 기록하지 않아요 — 내리기는 계속 수동으로 기록해주세요. 설정에서 연동 주소를 입력하면 사용할 수 있어요.</p>
+    </section>
+
     <!-- 오늘/전체 통계 -->
     <section class="card stats-card">
       <h2>통계</h2>
@@ -163,6 +183,13 @@
       <h2>설정</h2>
       <label for="weightInput">체중 (kg) — 칼로리 계산에 사용</label>
       <input type="number" id="weightInput" min="20" max="200" value="60" />
+
+      <label for="healthWorkerUrl">건강 앱 연동 주소 (Cloudflare Worker URL)</label>
+      <input type="url" id="healthWorkerUrl" placeholder="https://staircount-healthsync.xxx.workers.dev" />
+
+      <label for="healthSyncToken">연동 토큰 (SYNC_TOKEN)</label>
+      <input type="password" id="healthSyncToken" placeholder="Worker에 설정한 비밀 토큰" />
+
       <div class="modal-actions">
         <button id="resetDataBtn" class="danger-btn">모든 기록 삭제</button>
         <button id="closeSettingsBtn" class="primary-btn">닫기</button>
