@@ -302,9 +302,12 @@
     const groupW = chartW / data.length;
     const barW = groupW * 0.32;
 
-    const isDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
-    ctx.fillStyle = isDark ? "#9ca3af" : "#6b7280";
-    ctx.font = "12px sans-serif";
+    const styles = getComputedStyle(document.documentElement);
+    const upColor = styles.getPropertyValue("--up").trim() || "#c85a28";
+    const downColor = styles.getPropertyValue("--down").trim() || "#2a6c8f";
+    const mutedColor = styles.getPropertyValue("--muted").trim() || "#5c6570";
+
+    ctx.font = "600 12px 'Noto Sans KR', sans-serif";
     ctx.textAlign = "center";
 
     const weekdayFmt = new Intl.DateTimeFormat("ko-KR", { weekday: "short" });
@@ -314,13 +317,13 @@
       const upH = (d.up / maxVal) * chartH;
       const downH = (d.down / maxVal) * chartH;
 
-      ctx.fillStyle = "#16a34a";
+      ctx.fillStyle = upColor;
       ctx.fillRect(groupX + groupW / 2 - barW - 2, padding.top + chartH - upH, barW, upH);
 
-      ctx.fillStyle = "#2563eb";
+      ctx.fillStyle = downColor;
       ctx.fillRect(groupX + groupW / 2 + 2, padding.top + chartH - downH, barW, downH);
 
-      ctx.fillStyle = isDark ? "#9ca3af" : "#6b7280";
+      ctx.fillStyle = mutedColor;
       ctx.fillText(weekdayFmt.format(d.dayStart), groupX + groupW / 2, h - 10);
     });
   }
