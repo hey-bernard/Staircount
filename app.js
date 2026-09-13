@@ -4,10 +4,23 @@
   const STORAGE_KEY = "staircount_sessions_v1";
   const SETTINGS_KEY = "staircount_settings_v1";
 
-  // kcal per single stair step, calibrated for a 70kg person.
+  // Base kcal per single stair step at a "normal" pace, calibrated for a 70kg person.
   // Climbing costs roughly 3-4x more than descending for the same step count.
   const KCAL_PER_STEP_UP = 0.17;
   const KCAL_PER_STEP_DOWN = 0.05;
+
+  // Pace tiers in combined steps/minute -> intensity multiplier applied on top
+  // of the base kcal/step. Faster pace costs disproportionately more per step
+  // (harder push-off, higher heart rate), matching how stair-climbing MET
+  // values rise with speed. Descending is affected less by pace than climbing.
+  const PACE_TIERS = [
+    { max: 40, label: "여유", mult: 0.8 },
+    { max: 70, label: "보통", mult: 1.0 },
+    { max: 110, label: "빠름", mult: 1.4 },
+    { max: Infinity, label: "전력질주", mult: 1.9 },
+  ];
+  const MIN_DURATION_MIN = 0.1; // guards against divide-by-zero on near-instant taps
+  const DOWN_PACE_SENSITIVITY = 0.4; // descending intensity scales at 40% of climbing's
 
   const el = (id) => document.getElementById(id);
 
@@ -79,9 +92,27 @@
     localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
   }
 
-  function kcalFor(up, down) {
-    const factor = settings.weight / 70;
-    return up * KCAL_PER_STEP_UP * factor + down * KCAL_PER_STEP_DOWN * factor;
+  function paceTier(stepsPerMinute) {
+    return PACE_TIERS.find((t) => stepsPerMinute < t.max);
+  }
+
+  /** Steps/minute and intensity tier for a session (or the in-progress one). */
+  function paceInfo({ up, down, startedAt, endedAt }) {
+    const durationMin = Math.max((endedAt - startedAt) / 60000, MIN_DURATION_MIN);
+    const stepsPerMinute = (up + down) / durationMin;
+    return { stepsPerMinute, tier: paceTier(stepsPerMinute) };
+  }
+
+  /** Calorie estimate for one session, factoring in weight and time-based pace. */
+  function kcalForSession(session) {
+    const { tier } = paceInfo(session);
+    const weightFactor = settings.weight / 70;
+    const upMult = tier.mult;
+    const downMult = 1 + (tier.mult - 1) * DOWN_PACE_SENSITIVITY;
+    return (
+      session.up * KCAL_PER_STEP_UP * weightFactor * upMult +
+      session.down * KCAL_PER_STEP_DOWN * weightFactor * downMult
+    );
   }
 
   function formatTime(ms) {
@@ -133,7 +164,16 @@
 
   function updateTimer() {
     if (!current) return;
-    timerDisplay.textContent = formatTime(Date.now() - current.startedAt);
+    const now = Date.now();
+    timerDisplay.textContent = formatTime(now - current.startedAt);
+
+    const elapsedSec = (now - current.startedAt) / 1000;
+    if (elapsedSec < 5 || current.up + current.down === 0) {
+      sessionStatus.textContent = "운동 중...";
+      return;
+    }
+    const { stepsPerMinute, tier } = paceInfo({ ...current, endedAt: now });
+    sessionStatus.textContent = `운동 중 · ${tier.label} 페이스 (${Math.round(stepsPerMinute)}걸음/분)`;
   }
 
   function getStepSize() {
@@ -168,11 +208,13 @@
 
   function showSummary(session) {
     const duration = formatTime(session.endedAt - session.startedAt);
-    const kcal = kcalFor(session.up, session.down).toFixed(1);
+    const kcal = kcalForSession(session).toFixed(1);
+    const { stepsPerMinute, tier } = paceInfo(session);
     summaryBody.innerHTML = `
       <div>⏱️ 운동 시간: <strong>${duration}</strong></div>
       <div>⬆️ 오른 계단: <span class="up-txt">${session.up}칸</span></div>
       <div>⬇️ 내린 계단: <span class="down-txt">${session.down}칸</span></div>
+      <div>🏃 페이스: <strong>${tier.label}</strong> (${Math.round(stepsPerMinute)}걸음/분)</div>
       <div>🔥 소모 칼로리: <strong>${kcal} kcal</strong></div>
     `;
     summaryModal.classList.remove("hidden");
@@ -197,13 +239,15 @@
     const todayStart = startOfDay(now);
     const weekStart = startOfWeek(now);
 
-    let todayUp = 0, todayDown = 0;
+    let todayUp = 0, todayDown = 0, todayKcal = 0;
     let weekUp = 0, weekDown = 0;
-    let totalUp = 0, totalDown = 0;
+    let totalUp = 0, totalDown = 0, totalKcal = 0;
 
     for (const s of sessions) {
+      const kcal = kcalForSession(s);
       totalUp += s.up;
       totalDown += s.down;
+      totalKcal += kcal;
       if (s.startedAt >= weekStart) {
         weekUp += s.up;
         weekDown += s.down;
@@ -211,6 +255,7 @@
       if (s.startedAt >= todayStart) {
         todayUp += s.up;
         todayDown += s.down;
+        todayKcal += kcal;
       }
     }
 
@@ -220,8 +265,8 @@
     weekDownEl.textContent = weekDown;
     totalUpEl.textContent = totalUp;
     totalDownEl.textContent = totalDown;
-    todayCaloriesEl.textContent = `${kcalFor(todayUp, todayDown).toFixed(1)} kcal`;
-    totalCaloriesEl.textContent = `${kcalFor(totalUp, totalDown).toFixed(1)} kcal`;
+    todayCaloriesEl.textContent = `${todayKcal.toFixed(1)} kcal`;
+    totalCaloriesEl.textContent = `${totalKcal.toFixed(1)} kcal`;
   }
 
   function renderHistory() {
@@ -243,11 +288,12 @@
     for (const s of items) {
       const li = document.createElement("li");
       li.className = "history-item";
-      const kcal = kcalFor(s.up, s.down).toFixed(1);
+      const kcal = kcalForSession(s).toFixed(1);
       const duration = formatTime(s.endedAt - s.startedAt);
+      const { tier } = paceInfo(s);
       li.innerHTML = `
         <div class="h-main">
-          <div class="h-date">${fmt.format(s.startedAt)} · ${duration} · ${kcal} kcal</div>
+          <div class="h-date">${fmt.format(s.startedAt)} · ${duration} · ${tier.label} · ${kcal} kcal</div>
           <div class="h-counts">
             <span class="up-txt">⬆️ ${s.up}</span>&nbsp;&nbsp;
             <span class="down-txt">⬇️ ${s.down}</span>
