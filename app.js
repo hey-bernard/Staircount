@@ -87,6 +87,12 @@
   const autoDirDownBtn = el("autoDirDownBtn");
   const motionStatus = el("motionStatus");
 
+  const sensorPedometerEl = el("sensorPedometer");
+  const sensorBarometerEl = el("sensorBarometer");
+  const sensorReceivedAtEl = el("sensorReceivedAt");
+  const sensorPollBtn = el("sensorPollBtn");
+  const sensorAutoPoll = el("sensorAutoPoll");
+
   const summaryModal = el("summaryModal");
   const summaryBody = el("summaryBody");
   const closeSummaryBtn = el("closeSummaryBtn");
@@ -505,6 +511,56 @@
     }
   }
 
+  let sensorAutoPollTimer = null;
+
+  /**
+   * Pulls the most recent raw pedometer/barometer reading pushed by the
+   * "Sensor Logger" app (via the same Worker as Health sync, /sensorpush
+   * route). Shown verbatim — see healthsync/README.md for why we don't
+   * yet try to derive floor counts from it.
+   */
+  async function pollSensorStream() {
+    const url = settings.healthWorkerUrl.trim();
+    const token = settings.healthSyncToken.trim();
+
+    if (!url) {
+      sensorReceivedAtEl.textContent = "설정에서 연동 주소를 먼저 입력해주세요";
+      return;
+    }
+
+    try {
+      const res = await fetch(`${url.replace(/\/$/, "")}/sensorpush/latest`, {
+        headers: { "X-Sync-Token": token },
+      });
+
+      if (res.status === 401) {
+        sensorReceivedAtEl.textContent = "인증 실패 — 토큰을 확인해주세요";
+        return;
+      }
+      if (!res.ok) {
+        sensorReceivedAtEl.textContent = "수신 실패 — 잠시 후 다시 시도해주세요";
+        return;
+      }
+
+      const data = await res.json();
+      if (!data) {
+        sensorPedometerEl.textContent = "—";
+        sensorBarometerEl.textContent = "—";
+        sensorReceivedAtEl.textContent = "아직 수신된 데이터가 없어요";
+        return;
+      }
+
+      sensorPedometerEl.textContent = data.pedometer ? JSON.stringify(data.pedometer.values) : "—";
+      sensorBarometerEl.textContent = data.barometer ? JSON.stringify(data.barometer.values) : "—";
+      const receivedTime = new Intl.DateTimeFormat("ko-KR", { hour: "2-digit", minute: "2-digit", second: "2-digit" }).format(
+        data.receivedAt
+      );
+      sensorReceivedAtEl.textContent = `마지막 수신: ${receivedTime}`;
+    } catch {
+      sensorReceivedAtEl.textContent = "연동 주소에 연결할 수 없어요";
+    }
+  }
+
   /**
    * Peak-detects footsteps in the combined accelerationIncludingGravity
    * magnitude: a step shows up as a brief spike above a slow-adapting
@@ -676,6 +732,24 @@
 
   autoDirUpBtn.addEventListener("click", () => setAutoDirection("up"));
   autoDirDownBtn.addEventListener("click", () => setAutoDirection("down"));
+
+  sensorPollBtn.addEventListener("click", pollSensorStream);
+
+  sensorAutoPoll.addEventListener("change", () => {
+    clearInterval(sensorAutoPollTimer);
+    if (sensorAutoPoll.checked) {
+      pollSensorStream();
+      sensorAutoPollTimer = setInterval(pollSensorStream, 5000);
+    }
+  });
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) {
+      clearInterval(sensorAutoPollTimer);
+    } else if (sensorAutoPoll.checked) {
+      sensorAutoPollTimer = setInterval(pollSensorStream, 5000);
+    }
+  });
 
   resetDataBtn.addEventListener("click", () => {
     if (confirm("모든 운동 기록을 삭제할까요? 이 작업은 되돌릴 수 없습니다.")) {

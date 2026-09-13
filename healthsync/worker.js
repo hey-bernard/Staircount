@@ -1,14 +1,21 @@
 // Staircount Health Sync — Cloudflare Worker
 //
-// Bridges Apple Health data into the Staircount web app without a native
-// app: an iOS Shortcuts automation reads "Flights Climbed" and "Steps"
-// from Health and POSTs them here; the web app then GETs the latest value.
+// Two independent bridges into the Staircount web app, neither requiring a
+// native app build:
 //
-// Apple Health only ever records ascended flights (no HealthKit metric
-// exists for descended flights), so this only ever supplies the "오르기"
-// side — "내리기" stays a manual count in the app.
+// 1. /sync + /latest — an iOS Shortcuts automation reads "Flights Climbed"
+//    and "Steps" from Apple Health and POSTs them here once a day. Health
+//    only ever records ascended flights (no HealthKit metric exists for
+//    descended flights), so this only ever supplies the "오르기" side.
 //
-// Deploy (browser only, no CLI/Mac needed): see ../README.md "건강 앱 연동".
+// 2. /sensorpush + /sensorpush/latest — the free "Sensor Logger" app
+//    (tszheichoi) streams raw accelerometer/pedometer/barometer readings
+//    here via its built-in HTTP Push feature while running in the
+//    background. We store the most recent reading verbatim (no attempt to
+//    derive floor counts yet — the exact field names need confirming
+//    against a real device first) so the web app can display it.
+//
+// Deploy (browser only, no CLI/Mac needed): see ../README.md.
 
 export default {
   async fetch(request, env) {
@@ -52,6 +59,40 @@ export default {
         ? url.searchParams.get("date")
         : new Date().toISOString().slice(0, 10);
       const raw = await env.HEALTH_KV.get(`day:${date}`);
+      return new Response(raw || "null", {
+        headers: { ...cors, "Content-Type": "application/json" },
+      });
+    }
+
+    // Sensor Logger's HTTP Push body: { messageId, sessionId, deviceId,
+    // userId, payload: [{ name, time, values }, ...] }. We keep the most
+    // recent reading per sensor name we care about, stored verbatim.
+    if (request.method === "POST" && url.pathname === "/sensorpush") {
+      let body;
+      try {
+        body = await request.json();
+      } catch {
+        return new Response("Invalid JSON body", { status: 400, headers: cors });
+      }
+
+      const items = Array.isArray(body.payload) ? body.payload : [];
+      const receivedAt = Date.now();
+      const record = { receivedAt, pedometer: null, barometer: null, accelerometer: null };
+
+      for (const item of items) {
+        if (item && item.name && item.values && record.hasOwnProperty(item.name)) {
+          record[item.name] = { time: item.time, values: item.values };
+        }
+      }
+
+      await env.HEALTH_KV.put("sensorpush:latest", JSON.stringify(record));
+      return new Response(JSON.stringify({ ok: true, itemsReceived: items.length }), {
+        headers: { ...cors, "Content-Type": "application/json" },
+      });
+    }
+
+    if (request.method === "GET" && url.pathname === "/sensorpush/latest") {
+      const raw = await env.HEALTH_KV.get("sensorpush:latest");
       return new Response(raw || "null", {
         headers: { ...cors, "Content-Type": "application/json" },
       });
