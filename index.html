@@ -170,6 +170,18 @@
         <input type="checkbox" id="sensorAutoPoll" />
         5초마다 자동 갱신 (이 화면을 보는 동안만)
       </label>
+
+      <details class="inline-settings">
+        <summary>⚙️ 연동 설정</summary>
+        <div class="inline-settings-body">
+          <label for="sensorWorkerUrl">연동 주소 (Cloudflare Worker URL)</label>
+          <input type="url" id="sensorWorkerUrl" placeholder="https://staircount-healthsync.xxx.workers.dev" />
+
+          <label for="sensorSyncToken">연동 토큰 (SYNC_TOKEN)</label>
+          <input type="password" id="sensorSyncToken" placeholder="Worker에 설정한 비밀 토큰" />
+          <p class="settings-hint">위 "건강 앱 연동" 카드와 같은 연동 주소를 공유해요 — 어느 쪽에서 입력해도 함께 저장됩니다.</p>
+        </div>
+      </details>
     </section>
 
     <!-- 오늘/전체 통계 -->

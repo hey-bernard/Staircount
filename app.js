@@ -75,6 +75,8 @@
   const weightInput = el("weightInput");
   const healthWorkerUrlInput = el("healthWorkerUrl");
   const healthSyncTokenInput = el("healthSyncToken");
+  const sensorWorkerUrlInput = el("sensorWorkerUrl");
+  const sensorSyncTokenInput = el("sensorSyncToken");
 
   const healthFlightsEl = el("healthFlights");
   const healthStepsEl = el("healthSteps");
@@ -726,20 +728,34 @@
     }
   });
 
-  const saveWorkerConfig = () => {
-    const urlChanged = settings.healthWorkerUrl !== healthWorkerUrlInput.value.trim();
-    const tokenChanged = settings.healthSyncToken !== healthSyncTokenInput.value.trim();
-    if (!urlChanged && !tokenChanged) return;
+  // Worker URL/token settings appear on both the health-sync card and the
+  // sensor-stream card (they share the same Worker). Editing either pair
+  // saves to the one settings object and mirrors the value into the other
+  // card's fields, so they never go stale relative to each other.
+  function syncWorkerConfigInputs() {
+    healthWorkerUrlInput.value = settings.healthWorkerUrl;
+    healthSyncTokenInput.value = settings.healthSyncToken;
+    sensorWorkerUrlInput.value = settings.healthWorkerUrl;
+    sensorSyncTokenInput.value = settings.healthSyncToken;
+  }
 
-    settings.healthWorkerUrl = healthWorkerUrlInput.value.trim();
-    settings.healthSyncToken = healthSyncTokenInput.value.trim();
+  function saveWorkerConfig(urlInput, tokenInput) {
+    const newUrl = urlInput.value.trim();
+    const newToken = tokenInput.value.trim();
+    if (newUrl === settings.healthWorkerUrl && newToken === settings.healthSyncToken) return;
+
+    settings.healthWorkerUrl = newUrl;
+    settings.healthSyncToken = newToken;
     saveSettings();
+    syncWorkerConfigInputs();
     if (settings.healthWorkerUrl) {
       syncHealthData();
     }
-  };
-  healthWorkerUrlInput.addEventListener("change", saveWorkerConfig);
-  healthSyncTokenInput.addEventListener("change", saveWorkerConfig);
+  }
+  healthWorkerUrlInput.addEventListener("change", () => saveWorkerConfig(healthWorkerUrlInput, healthSyncTokenInput));
+  healthSyncTokenInput.addEventListener("change", () => saveWorkerConfig(healthWorkerUrlInput, healthSyncTokenInput));
+  sensorWorkerUrlInput.addEventListener("change", () => saveWorkerConfig(sensorWorkerUrlInput, sensorSyncTokenInput));
+  sensorSyncTokenInput.addEventListener("change", () => saveWorkerConfig(sensorWorkerUrlInput, sensorSyncTokenInput));
 
   healthSyncBtn.addEventListener("click", syncHealthData);
 
@@ -785,8 +801,7 @@
   });
 
   weightInput.value = settings.weight;
-  healthWorkerUrlInput.value = settings.healthWorkerUrl;
-  healthSyncTokenInput.value = settings.healthSyncToken;
+  syncWorkerConfigInputs();
   renderAll();
   if (settings.healthWorkerUrl) {
     syncHealthData();
