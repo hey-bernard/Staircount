@@ -15,6 +15,19 @@
 //    derive floor counts yet — the exact field names need confirming
 //    against a real device first) so the web app can display it.
 //
+// Cloudflare Workers KV's free plan allows only 1,000 *writes*/day (reads
+// are a generous 100,000/day — it's specifically writes that are scarce).
+// Sensor Logger's default push interval is 1 second, i.e. ~86,400
+// pushes/day if left streaming all day, which would blow the write budget
+// in about 16 minutes if we wrote to KV on every push. So /sensorpush
+// accepts every push but only actually persists to KV once per
+// SENSOR_KV_WRITE_INTERVAL_MS, using KV's own last-write timestamp (read
+// back on each request, which is cheap) to decide — no per-isolate state,
+// so this holds up even though Workers don't guarantee memory persists
+// between requests. 100s -> at most 864 writes/day from this route, well
+// under the 1,000 budget with headroom left for the /sync route above.
+const SENSOR_KV_WRITE_INTERVAL_MS = 100_000;
+
 // Deploy (browser only, no CLI/Mac needed): see ../README.md.
 
 export default {
@@ -76,17 +89,37 @@ export default {
       }
 
       const items = Array.isArray(body.payload) ? body.payload : [];
-      const receivedAt = Date.now();
-      const record = { receivedAt, pedometer: null, barometer: null, accelerometer: null };
+      const now = Date.now();
 
+      const existingRaw = await env.HEALTH_KV.get("sensorpush:latest");
+      const existing = existingRaw
+        ? JSON.parse(existingRaw)
+        : { receivedAt: 0, pedometer: null, barometer: null, accelerometer: null };
+
+      // Merge into what's already stored (rather than overwrite wholesale)
+      // so a push carrying only one sensor doesn't blank out a different
+      // sensor a moments-ago push reported.
+      const merged = { ...existing };
+      let sawTrackedSensor = false;
       for (const item of items) {
-        if (item && item.name && item.values && record.hasOwnProperty(item.name)) {
-          record[item.name] = { time: item.time, values: item.values };
+        if (item && item.name && item.values && ["pedometer", "barometer", "accelerometer"].includes(item.name)) {
+          merged[item.name] = { time: item.time, values: item.values };
+          sawTrackedSensor = true;
         }
       }
 
-      await env.HEALTH_KV.put("sensorpush:latest", JSON.stringify(record));
-      return new Response(JSON.stringify({ ok: true, itemsReceived: items.length }), {
+      const dueForWrite = now - existing.receivedAt >= SENSOR_KV_WRITE_INTERVAL_MS;
+      if (sawTrackedSensor && dueForWrite) {
+        merged.receivedAt = now;
+        await env.HEALTH_KV.put("sensorpush:latest", JSON.stringify(merged));
+        return new Response(JSON.stringify({ ok: true, stored: true, itemsReceived: items.length }), {
+          headers: { ...cors, "Content-Type": "application/json" },
+        });
+      }
+
+      // Acknowledged but not persisted this time — either nothing we track
+      // was in this push, or we're still inside the write-throttle window.
+      return new Response(JSON.stringify({ ok: true, stored: false, itemsReceived: items.length }), {
         headers: { ...cors, "Content-Type": "application/json" },
       });
     }
