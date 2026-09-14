@@ -646,6 +646,14 @@
     }
 
     if (typeof DeviceMotionEvent.requestPermission === "function") {
+      // iOS Safari only shows the permission prompt if requestPermission()
+      // is invoked synchronously within a user gesture's call stack — this
+      // function runs synchronously up to this first `await`, since it's
+      // called directly (no intervening await) from the button's click
+      // handler. Do not add any `await` before this line, or move this
+      // call behind another async boundary (setTimeout, a fetch, etc.) —
+      // either breaks the user-gesture chain and the prompt silently never
+      // appears.
       let result;
       try {
         result = await DeviceMotionEvent.requestPermission();
