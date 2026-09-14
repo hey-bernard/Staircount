@@ -79,7 +79,7 @@ body {
   background: var(--bg);
   color: var(--ink);
   font-family: var(--font-body);
-  padding: 0 0 2.5rem;
+  padding: 0 env(safe-area-inset-right) calc(2.5rem + env(safe-area-inset-bottom)) env(safe-area-inset-left);
 }
 
 h1, h2 {
@@ -96,7 +96,7 @@ h1, h2 {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 1.1rem 1.25rem 0.9rem;
+  padding: calc(1.1rem + env(safe-area-inset-top)) 1.25rem 0.9rem;
   position: sticky;
   top: 0;
   background: var(--bg);
@@ -122,21 +122,6 @@ h1, h2 {
   letter-spacing: -0.01em;
 }
 
-.icon-btn {
-  background: none;
-  border: none;
-  color: var(--muted);
-  cursor: pointer;
-  padding: 0.4rem;
-  border-radius: 999px;
-  line-height: 0;
-}
-
-.icon-btn:hover {
-  color: var(--ink);
-}
-
-.icon-btn:focus-visible,
 button:focus-visible,
 input:focus-visible {
   outline: 2px solid var(--down);
@@ -274,6 +259,15 @@ main {
   color: var(--danger);
 }
 
+.steps-line {
+  font-family: var(--font-display);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--muted);
+  margin-bottom: 1.1rem;
+}
+
 .counters {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -390,6 +384,72 @@ main {
   text-align: center;
   font-family: var(--font-display);
   font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Inline settings disclosure (per-card, collapsed by default) ---------- */
+
+.inline-settings {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--line);
+  text-align: left;
+}
+
+.inline-settings summary {
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 0.85rem;
+  color: var(--muted);
+  list-style: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.inline-settings summary::-webkit-details-marker {
+  display: none;
+}
+
+.inline-settings summary::after {
+  content: "+";
+  font-family: var(--font-display);
+  font-weight: 700;
+}
+
+.inline-settings[open] summary::after {
+  content: "\2212";
+}
+
+.inline-settings-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-top: 0.75rem;
+}
+
+.inline-settings-body label {
+  font-size: 0.78rem;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.inline-settings-body input {
+  padding: 0.6rem 0.7rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: 0.85rem;
+  margin-bottom: 0.5rem;
+}
+
+.settings-hint {
+  margin: -0.15rem 0 0;
+  font-size: 0.74rem;
+  color: var(--muted);
+  line-height: 1.4;
 }
 
 /* ---------- Motion sensor auto-detect ---------- */
@@ -658,6 +718,10 @@ main {
   color: var(--down);
 }
 
+.history-item .h-counts .steps-txt {
+  color: var(--muted);
+}
+
 .history-item .h-delete {
   background: none;
   border: none;
@@ -677,6 +741,12 @@ main {
   text-align: center;
   padding: 1rem 0;
   font-size: 0.88rem;
+}
+
+.history-reset-btn {
+  display: block;
+  width: 100%;
+  margin-top: 1rem;
 }
 
 /* ---------- Modals ---------- */
@@ -713,27 +783,6 @@ main {
   text-transform: none;
   letter-spacing: normal;
   color: var(--ink);
-}
-
-.modal-content label {
-  display: block;
-  font-size: 0.82rem;
-  color: var(--muted);
-  margin-bottom: 0.4rem;
-  font-weight: 500;
-}
-
-.modal-content input {
-  width: 100%;
-  padding: 0.65rem 0.7rem;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--line);
-  background: var(--bg);
-  color: var(--ink);
-  margin-bottom: 1rem;
-  font-family: var(--font-display);
-  font-variant-numeric: tabular-nums;
-  font-size: 1rem;
 }
 
 .modal-actions {

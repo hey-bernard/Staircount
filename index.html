@@ -17,12 +17,6 @@
       </svg>
       <h1>계단오르기</h1>
     </div>
-    <button id="settingsBtn" class="icon-btn" aria-label="설정" title="설정">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-        <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="2"/>
-        <path d="M19.4 13a7.97 7.97 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a8 8 0 0 0-1.7-1L14.9 3h-4l-.4 2.9a8 8 0 0 0-1.7 1l-2.5-1-2 3.5L6.4 11a7.97 7.97 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1a8 8 0 0 0 1.7 1l.4 2.9h4l.4-2.9a8 8 0 0 0 1.7-1l2.5 1 2-3.5L19.4 13Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
-      </svg>
-    </button>
   </header>
   <div class="step-rule" aria-hidden="true"></div>
 
@@ -32,6 +26,7 @@
       <div class="timer" id="timerDisplay">00:00</div>
       <div class="session-status" id="sessionStatus">운동을 시작해보세요</div>
       <div class="coach-tip" id="coachTip">💡 시작 전 5분, 발목·무릎 가볍게 풀어주세요</div>
+      <div class="steps-line" id="sessionStepsLine">🚶 걸음 수 0</div>
 
       <div class="counters">
         <button class="count-btn up" id="upBtn">
@@ -55,6 +50,14 @@
         <label for="stepSize">한 번 누를 때 계단 수</label>
         <input type="number" id="stepSize" min="1" max="99" value="1" />
       </div>
+
+      <details class="inline-settings">
+        <summary>⚙️ 운동 설정</summary>
+        <div class="inline-settings-body">
+          <label for="weightInput">체중 (kg) — 칼로리 계산에 사용</label>
+          <input type="number" id="weightInput" min="20" max="200" value="60" />
+        </div>
+      </details>
 
       <div class="motion-block">
         <button id="autoDetectBtn" class="ghost-btn">📡 자동 감지 시작 (가속도·자이로 센서)</button>
@@ -127,7 +130,19 @@
         <span class="health-synced" id="healthSyncedAt">아직 연동되지 않았어요</span>
         <button id="healthSyncBtn" class="ghost-btn">🔄 지금 동기화</button>
       </div>
-      <p class="health-note">* Apple Health는 내려간 층수는 기록하지 않아요 — 내리기는 계속 수동으로 기록해주세요. 설정에서 연동 주소를 입력하면 사용할 수 있어요.</p>
+      <p class="health-note">* Apple Health는 내려간 층수는 기록하지 않아요 — 내리기는 계속 수동으로 기록해주세요.</p>
+
+      <details class="inline-settings">
+        <summary>⚙️ 연동 설정</summary>
+        <div class="inline-settings-body">
+          <label for="healthWorkerUrl">연동 주소 (Cloudflare Worker URL)</label>
+          <input type="url" id="healthWorkerUrl" placeholder="https://staircount-healthsync.xxx.workers.dev" />
+
+          <label for="healthSyncToken">연동 토큰 (SYNC_TOKEN)</label>
+          <input type="password" id="healthSyncToken" placeholder="Worker에 설정한 비밀 토큰" />
+          <p class="settings-hint">아래 "실시간 센서 스트림" 카드도 같은 연동 주소를 함께 사용해요.</p>
+        </div>
+      </details>
     </section>
 
     <!-- 실시간 센서 스트림 (Sensor Logger 앱의 HTTP Push, 진단용 원본 값) -->
@@ -186,6 +201,14 @@
           <div class="stat-value" id="totalDown">0</div>
         </div>
         <div class="stat">
+          <div class="stat-label">오늘 걸음 수</div>
+          <div class="stat-value" id="todaySteps">0</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">누적 걸음 수</div>
+          <div class="stat-value" id="totalSteps">0</div>
+        </div>
+        <div class="stat">
           <div class="stat-label">오늘 소모 칼로리</div>
           <div class="stat-value" id="todayCalories">0 kcal</div>
         </div>
@@ -212,28 +235,9 @@
       <ul id="historyList" class="history-list">
         <li class="empty-msg" id="emptyHistoryMsg">아직 기록이 없어요. 운동을 시작해보세요!</li>
       </ul>
+      <button id="resetDataBtn" class="danger-btn history-reset-btn">🗑️ 전체 기록 삭제</button>
     </section>
   </main>
-
-  <!-- 설정 모달 -->
-  <div id="settingsModal" class="modal hidden">
-    <div class="modal-content">
-      <h2>설정</h2>
-      <label for="weightInput">체중 (kg) — 칼로리 계산에 사용</label>
-      <input type="number" id="weightInput" min="20" max="200" value="60" />
-
-      <label for="healthWorkerUrl">건강 앱 연동 주소 (Cloudflare Worker URL)</label>
-      <input type="url" id="healthWorkerUrl" placeholder="https://staircount-healthsync.xxx.workers.dev" />
-
-      <label for="healthSyncToken">연동 토큰 (SYNC_TOKEN)</label>
-      <input type="password" id="healthSyncToken" placeholder="Worker에 설정한 비밀 토큰" />
-
-      <div class="modal-actions">
-        <button id="resetDataBtn" class="danger-btn">모든 기록 삭제</button>
-        <button id="closeSettingsBtn" class="primary-btn">닫기</button>
-      </div>
-    </div>
-  </div>
 
   <!-- 세션 종료 요약 모달 -->
   <div id="summaryModal" class="modal hidden">

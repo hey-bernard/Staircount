@@ -55,6 +55,7 @@
   const undoBtn = el("undoBtn");
   const startStopBtn = el("startStopBtn");
   const stepSizeInput = el("stepSize");
+  const sessionStepsLine = el("sessionStepsLine");
 
   const todayUpEl = el("todayUp");
   const todayDownEl = el("todayDown");
@@ -62,15 +63,14 @@
   const weekDownEl = el("weekDown");
   const totalUpEl = el("totalUp");
   const totalDownEl = el("totalDown");
+  const todayStepsEl = el("todaySteps");
+  const totalStepsEl = el("totalSteps");
   const todayCaloriesEl = el("todayCalories");
   const totalCaloriesEl = el("totalCalories");
 
   const historyList = el("historyList");
   const emptyHistoryMsg = el("emptyHistoryMsg");
 
-  const settingsBtn = el("settingsBtn");
-  const settingsModal = el("settingsModal");
-  const closeSettingsBtn = el("closeSettingsBtn");
   const resetDataBtn = el("resetDataBtn");
   const weightInput = el("weightInput");
   const healthWorkerUrlInput = el("healthWorkerUrl");
@@ -151,9 +151,12 @@
   }
 
   /** Steps/minute and intensity tier for a session (or the in-progress one). */
-  function paceInfo({ up, down, startedAt, endedAt }) {
+  function paceInfo({ steps, up, down, startedAt, endedAt }) {
     const durationMin = Math.max((endedAt - startedAt) / 60000, MIN_DURATION_MIN);
-    const stepsPerMinute = (up + down) / durationMin;
+    // Older saved sessions predate the raw step counter; fall back to the
+    // stair count (which is what pace meant before steps existed).
+    const totalSteps = typeof steps === "number" ? steps : up + down;
+    const stepsPerMinute = totalSteps / durationMin;
     return { stepsPerMinute, tier: paceTier(stepsPerMinute) };
   }
 
@@ -179,7 +182,7 @@
   }
 
   function startSession() {
-    current = { startedAt: Date.now(), up: 0, down: 0, actions: [] };
+    current = { startedAt: Date.now(), up: 0, down: 0, steps: 0, actions: [] };
     timerInterval = setInterval(updateTimer, 1000);
     startStopBtn.textContent = "⏹️ 운동 종료";
     startStopBtn.classList.add("stop");
@@ -202,6 +205,7 @@
       endedAt: Date.now(),
       up: current.up,
       down: current.down,
+      steps: current.steps,
     };
 
     if (session.up > 0 || session.down > 0) {
@@ -217,6 +221,7 @@
     timerDisplay.textContent = "00:00";
     coachTip.textContent = "💡 시작 전 5분, 발목·무릎 가볍게 풀어주세요";
     coachTip.classList.remove("warning");
+    sessionStepsLine.textContent = "🚶 걸음 수 0";
     renderCurrentCounts();
     renderAll();
   }
@@ -227,7 +232,7 @@
     timerDisplay.textContent = formatTime(now - current.startedAt);
 
     const elapsedSec = (now - current.startedAt) / 1000;
-    if (elapsedSec < 5 || current.up + current.down === 0) {
+    if (elapsedSec < 5 || current.steps === 0) {
       sessionStatus.textContent = "운동 중...";
       updateCoachTip(elapsedSec, null);
       return;
@@ -267,6 +272,7 @@
     }
     const amount = getStepSize();
     current[type] += amount;
+    current.steps += 1; // raw physical step/tap, independent of the stair-count multiplier
     current.actions.push({ type, amount });
     undoBtn.disabled = false;
     renderCurrentCounts();
@@ -277,6 +283,7 @@
     if (!current || current.actions.length === 0) return;
     const last = current.actions.pop();
     current[last.type] -= last.amount;
+    current.steps -= 1;
     undoBtn.disabled = current.actions.length === 0;
     renderCurrentCounts();
     updateTimer();
@@ -285,6 +292,7 @@
   function renderCurrentCounts() {
     upCountEl.textContent = current ? current.up : 0;
     downCountEl.textContent = current ? current.down : 0;
+    sessionStepsLine.textContent = `🚶 걸음 수 ${current ? current.steps : 0}`;
     undoBtn.disabled = !current || current.actions.length === 0;
   }
 
@@ -296,6 +304,7 @@
       <div>⏱️ 운동 시간: <strong>${duration}</strong></div>
       <div>⬆️ 오른 계단: <span class="up-txt">${session.up}칸</span></div>
       <div>⬇️ 내린 계단: <span class="down-txt">${session.down}칸</span></div>
+      <div>🚶 걸음 수: <strong>${session.steps}보</strong></div>
       <div>🏃 페이스: <strong>${tier.label}</strong> (${Math.round(stepsPerMinute)}걸음/분)</div>
       <div>🔥 소모 칼로리: <strong>${kcal} kcal</strong></div>
     `;
@@ -321,14 +330,16 @@
     const todayStart = startOfDay(now);
     const weekStart = startOfWeek(now);
 
-    let todayUp = 0, todayDown = 0, todayKcal = 0;
+    let todayUp = 0, todayDown = 0, todaySteps = 0, todayKcal = 0;
     let weekUp = 0, weekDown = 0;
-    let totalUp = 0, totalDown = 0, totalKcal = 0;
+    let totalUp = 0, totalDown = 0, totalSteps = 0, totalKcal = 0;
 
     for (const s of sessions) {
       const kcal = kcalForSession(s);
+      const steps = typeof s.steps === "number" ? s.steps : s.up + s.down;
       totalUp += s.up;
       totalDown += s.down;
+      totalSteps += steps;
       totalKcal += kcal;
       if (s.startedAt >= weekStart) {
         weekUp += s.up;
@@ -337,6 +348,7 @@
       if (s.startedAt >= todayStart) {
         todayUp += s.up;
         todayDown += s.down;
+        todaySteps += steps;
         todayKcal += kcal;
       }
     }
@@ -347,6 +359,8 @@
     weekDownEl.textContent = weekDown;
     totalUpEl.textContent = totalUp;
     totalDownEl.textContent = totalDown;
+    todayStepsEl.textContent = todaySteps;
+    totalStepsEl.textContent = totalSteps;
     todayCaloriesEl.textContent = `${todayKcal.toFixed(1)} kcal`;
     totalCaloriesEl.textContent = `${totalKcal.toFixed(1)} kcal`;
   }
@@ -373,12 +387,14 @@
       const kcal = kcalForSession(s).toFixed(1);
       const duration = formatTime(s.endedAt - s.startedAt);
       const { tier } = paceInfo(s);
+      const steps = typeof s.steps === "number" ? s.steps : s.up + s.down;
       li.innerHTML = `
         <div class="h-main">
           <div class="h-date">${fmt.format(s.startedAt)} · ${duration} · ${tier.label} · ${kcal} kcal</div>
           <div class="h-counts">
             <span class="up-txt">⬆️ ${s.up}</span>&nbsp;&nbsp;
-            <span class="down-txt">⬇️ ${s.down}</span>
+            <span class="down-txt">⬇️ ${s.down}</span>&nbsp;&nbsp;
+            <span class="steps-txt">🚶 ${steps}</span>
           </div>
         </div>
         <button class="h-delete" aria-label="삭제" data-id="${s.id}">🗑️</button>
@@ -696,29 +712,34 @@
     }
   });
 
-  settingsBtn.addEventListener("click", () => {
-    weightInput.value = settings.weight;
-    healthWorkerUrlInput.value = settings.healthWorkerUrl;
-    healthSyncTokenInput.value = settings.healthSyncToken;
-    settingsModal.classList.remove("hidden");
-  });
-
-  closeSettingsBtn.addEventListener("click", () => {
+  // Each "⚙️ 설정" disclosure auto-saves on change — no separate save button,
+  // since it now lives next to the feature it configures instead of one
+  // central modal.
+  weightInput.addEventListener("change", () => {
     const w = parseInt(weightInput.value, 10);
     if (Number.isFinite(w) && w > 0) {
       settings.weight = w;
+      saveSettings();
+      renderAll();
+    } else {
+      weightInput.value = settings.weight;
     }
+  });
+
+  const saveWorkerConfig = () => {
     const urlChanged = settings.healthWorkerUrl !== healthWorkerUrlInput.value.trim();
     const tokenChanged = settings.healthSyncToken !== healthSyncTokenInput.value.trim();
+    if (!urlChanged && !tokenChanged) return;
+
     settings.healthWorkerUrl = healthWorkerUrlInput.value.trim();
     settings.healthSyncToken = healthSyncTokenInput.value.trim();
     saveSettings();
-    settingsModal.classList.add("hidden");
-    renderAll();
-    if ((urlChanged || tokenChanged) && settings.healthWorkerUrl) {
+    if (settings.healthWorkerUrl) {
       syncHealthData();
     }
-  });
+  };
+  healthWorkerUrlInput.addEventListener("change", saveWorkerConfig);
+  healthSyncTokenInput.addEventListener("change", saveWorkerConfig);
 
   healthSyncBtn.addEventListener("click", syncHealthData);
 
@@ -755,7 +776,6 @@
     if (confirm("모든 운동 기록을 삭제할까요? 이 작업은 되돌릴 수 없습니다.")) {
       sessions = [];
       saveSessions();
-      settingsModal.classList.add("hidden");
       renderAll();
     }
   });
@@ -765,6 +785,8 @@
   });
 
   weightInput.value = settings.weight;
+  healthWorkerUrlInput.value = settings.healthWorkerUrl;
+  healthSyncTokenInput.value = settings.healthSyncToken;
   renderAll();
   if (settings.healthWorkerUrl) {
     syncHealthData();
