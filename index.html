@@ -61,6 +61,8 @@
 
       <div class="motion-block">
         <button id="autoDetectBtn" class="ghost-btn">📡 자동 감지 시작 (가속도·자이로 센서)</button>
+        <button id="calibrateBtn" class="ghost-btn">🎯 내 걸음에 맞게 보정하기</button>
+        <p class="calib-status" id="calibStatusLine">보정 안 됨 · 기본값(추정치)으로 동작 중</p>
 
         <div class="auto-direction" id="autoDirectionGroup" hidden>
           <button type="button" class="auto-dir-btn up active" id="autoDirUpBtn">⬆️ 오르는 중</button>
@@ -182,6 +184,24 @@
       <button id="resetDataBtn" class="danger-btn history-reset-btn">🗑️ 전체 기록 삭제</button>
     </section>
   </main>
+
+  <!-- 보정(캘리브레이션) 모달 -->
+  <div id="calibrationModal" class="modal hidden">
+    <div class="modal-content">
+      <h2>내 걸음에 맞게 보정하기</h2>
+      <div class="calib-step" id="calibStepLabel">1/3</div>
+      <p id="calibInstruction">평소처럼 평지를 10걸음 정도 걸어주세요.</p>
+      <div class="calib-progress-track">
+        <div class="calib-progress-fill" id="calibProgressBar"></div>
+      </div>
+      <div class="calib-count" id="calibCount">0 / 10 걸음</div>
+      <p class="calib-result" id="calibResult" hidden></p>
+      <div class="modal-actions">
+        <button id="calibCancelBtn" class="ghost-btn">취소</button>
+        <button id="calibNextBtn" class="primary-btn" disabled>다음</button>
+      </div>
+    </div>
+  </div>
 
   <!-- 세션 종료 요약 모달 -->
   <div id="summaryModal" class="modal hidden">

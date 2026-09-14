@@ -57,6 +57,18 @@
   const DESCEND_MIN_PEAK = STEP_THRESHOLD * 3.0; // at/above this: sharp enough to be a downward impact
   const CLASSIFY_WINDOW_SIZE = 3; // average this many recent step peaks to smooth out one noisy sample
 
+  // Calibration: walk each activity for real and measure its actual peak
+  // heights on this phone/gait, instead of relying on the estimated
+  // defaults above. The boundary between two activities is set at the
+  // midpoint between their measured averages.
+  const CALIBRATION_TARGET_STEPS = 10; // steps to collect per phase (shown as a goal, not a hard cap)
+  const CALIBRATION_MIN_STEPS = 6; // minimum before "다음"/"완료" is enabled
+  const CALIBRATION_PHASES = [
+    { key: "flat", instruction: `평소처럼 평지를 ${CALIBRATION_TARGET_STEPS}걸음 정도 걸어주세요.` },
+    { key: "up", instruction: `계단을 ${CALIBRATION_TARGET_STEPS}걸음 정도 올라가주세요.` },
+    { key: "down", instruction: `계단을 ${CALIBRATION_TARGET_STEPS}걸음 정도 내려가주세요.` },
+  ];
+
   const el = (id) => document.getElementById(id);
 
   const timerDisplay = el("timerDisplay");
@@ -95,6 +107,17 @@
   const motionHint = el("motionHint");
   const motionStatus = el("motionStatus");
 
+  const calibrateBtn = el("calibrateBtn");
+  const calibStatusLine = el("calibStatusLine");
+  const calibrationModal = el("calibrationModal");
+  const calibStepLabel = el("calibStepLabel");
+  const calibInstruction = el("calibInstruction");
+  const calibProgressBar = el("calibProgressBar");
+  const calibCount = el("calibCount");
+  const calibResult = el("calibResult");
+  const calibCancelBtn = el("calibCancelBtn");
+  const calibNextBtn = el("calibNextBtn");
+
   const summaryModal = el("summaryModal");
   const summaryBody = el("summaryBody");
   const closeSummaryBtn = el("closeSummaryBtn");
@@ -121,6 +144,12 @@
     firstEventAt: 0,
     gotFirstEvent: false,
     watchdogTimer: null,
+  };
+
+  const calibState = {
+    active: false,
+    phaseIndex: 0,
+    samples: { flat: [], up: [], down: [] },
   };
 
   function loadSessions() {
@@ -530,7 +559,7 @@
         // Step finished settling -- its full peak height is now known.
         motionState.aboveThreshold = false;
         motionState.baseline = motionState.baseline * BASELINE_SMOOTHING + magnitude * (1 - BASELINE_SMOOTHING);
-        registerStep(motionState.stepPeak);
+        onStepPeak(motionState.stepPeak);
       }
       return; // still settling from the last spike; hold the baseline
     }
@@ -538,17 +567,36 @@
     motionState.baseline = motionState.baseline * BASELINE_SMOOTHING + magnitude * (1 - BASELINE_SMOOTHING);
   }
 
+  /** Routes a finished step's peak to calibration collection or live classification. */
+  function onStepPeak(peak) {
+    if (calibState.active) {
+      registerCalibrationSample(peak);
+    } else {
+      registerStep(peak);
+    }
+  }
+
+  /** Calibrated thresholds if available, else the estimated defaults. */
+  function getThresholds() {
+    const c = settings.calibration;
+    if (c && typeof c.flatWalkMaxPeak === "number" && typeof c.descendMinPeak === "number") {
+      return { flatMax: c.flatWalkMaxPeak, descendMin: c.descendMinPeak };
+    }
+    return { flatMax: FLAT_WALK_MAX_PEAK, descendMin: DESCEND_MIN_PEAK };
+  }
+
   /**
    * Classifies a step from its (smoothed, recent-window) peak deviation.
    * See the FLAT_WALK_MAX_PEAK/DESCEND_MIN_PEAK comment above for the
    * reasoning; this is intentionally a simple, inspectable threshold rule
    * rather than a black-box model, so its behavior can be explained and
-   * tuned once real device data is in.
+   * tuned. Uses calibrated thresholds once available (see getThresholds).
    */
   function classifyActivity(peakHistory) {
     const avgPeak = peakHistory.reduce((sum, p) => sum + p, 0) / peakHistory.length;
-    if (avgPeak < FLAT_WALK_MAX_PEAK) return "flat";
-    return avgPeak >= DESCEND_MIN_PEAK ? "down" : "up";
+    const { flatMax, descendMin } = getThresholds();
+    if (avgPeak < flatMax) return "flat";
+    return avgPeak >= descendMin ? "down" : "up";
   }
 
   /** Runs once a step's peak is known: classifies it, then counts it (unless flat). */
@@ -585,35 +633,44 @@
     motionStatus.textContent = `${activityLabel} · 감지된 걸음 ${motionState.detectedSteps}`;
   }
 
-  async function startAutoDetect() {
+  /**
+   * Requests DeviceMotion permission (iOS 13+ Safari) or reports it's
+   * unsupported. MUST be called directly from within a user-gesture
+   * handler (a click listener) with no `await` before this call and no
+   * other async boundary (setTimeout, a fetch, etc.) in between -- iOS
+   * Safari only shows the permission prompt if requestPermission() is
+   * invoked synchronously within that gesture's call stack. Both callers
+   * (startAutoDetect, startCalibration) satisfy this since they call it
+   * as their first action.
+   */
+  async function requestMotionPermission() {
     if (typeof DeviceMotionEvent === "undefined") {
+      return { granted: false, message: "이 기기/브라우저는 동작 센서를 지원하지 않아요. 수동으로 탭해주세요." };
+    }
+    if (typeof DeviceMotionEvent.requestPermission !== "function") {
+      return { granted: true, message: null };
+    }
+    let result;
+    try {
+      result = await DeviceMotionEvent.requestPermission();
+    } catch {
+      result = "denied";
+    }
+    if (result !== "granted") {
+      return { granted: false, message: "센서 접근 권한이 거부됐어요. 설정 > Safari > 모션 및 방향 접근을 확인해주세요." };
+    }
+    return { granted: true, message: null };
+  }
+
+  async function startAutoDetect() {
+    if (calibState.active) return; // calibration owns the sensor listener right now
+
+    const permission = await requestMotionPermission();
+    if (!permission.granted) {
       motionStatus.hidden = false;
       motionStatus.classList.add("warning");
-      motionStatus.textContent = "이 기기/브라우저는 동작 센서를 지원하지 않아요. 수동으로 탭해주세요.";
+      motionStatus.textContent = permission.message;
       return;
-    }
-
-    if (typeof DeviceMotionEvent.requestPermission === "function") {
-      // iOS Safari only shows the permission prompt if requestPermission()
-      // is invoked synchronously within a user gesture's call stack — this
-      // function runs synchronously up to this first `await`, since it's
-      // called directly (no intervening await) from the button's click
-      // handler. Do not add any `await` before this line, or move this
-      // call behind another async boundary (setTimeout, a fetch, etc.) —
-      // either breaks the user-gesture chain and the prompt silently never
-      // appears.
-      let result;
-      try {
-        result = await DeviceMotionEvent.requestPermission();
-      } catch {
-        result = "denied";
-      }
-      if (result !== "granted") {
-        motionStatus.hidden = false;
-        motionStatus.classList.add("warning");
-        motionStatus.textContent = "센서 접근 권한이 거부됐어요. 설정 > Safari > 모션 및 방향 접근을 확인해주세요.";
-        return;
-      }
     }
 
     motionState.active = true;
@@ -661,6 +718,122 @@
     autoDirDownBtn.classList.toggle("active", direction === "down");
   }
 
+  async function startCalibration() {
+    if (motionState.active) {
+      stopAutoDetect(); // calibration and live auto-detect can't share the sensor listener at once
+    }
+
+    const permission = await requestMotionPermission();
+    if (!permission.granted) {
+      motionStatus.hidden = false;
+      motionStatus.classList.add("warning");
+      motionStatus.textContent = permission.message;
+      return;
+    }
+
+    calibState.active = true;
+    calibState.phaseIndex = 0;
+    calibState.samples = { flat: [], up: [], down: [] };
+
+    // Reuse motionState's peak-detector fields (same signal-processing
+    // code as live detection) but reset them for a clean start.
+    motionState.baseline = null;
+    motionState.aboveThreshold = false;
+    motionState.stepPeak = 0;
+    motionState.gotFirstEvent = false;
+
+    window.addEventListener("devicemotion", handleDeviceMotion);
+
+    calibResult.hidden = true;
+    calibNextBtn.hidden = false;
+    calibrationModal.classList.remove("hidden");
+    updateCalibrationUI();
+  }
+
+  function stopCalibration() {
+    calibState.active = false;
+    window.removeEventListener("devicemotion", handleDeviceMotion);
+    calibrationModal.classList.add("hidden");
+  }
+
+  function registerCalibrationSample(peak) {
+    const phase = CALIBRATION_PHASES[calibState.phaseIndex];
+    calibState.samples[phase.key].push(peak);
+    updateCalibrationUI();
+  }
+
+  function updateCalibrationUI() {
+    const phase = CALIBRATION_PHASES[calibState.phaseIndex];
+    const count = calibState.samples[phase.key].length;
+    const isLastPhase = calibState.phaseIndex === CALIBRATION_PHASES.length - 1;
+
+    calibStepLabel.textContent = `${calibState.phaseIndex + 1}/${CALIBRATION_PHASES.length}`;
+    calibInstruction.textContent = phase.instruction;
+    calibCount.textContent = `${count} / ${CALIBRATION_TARGET_STEPS} 걸음`;
+    calibProgressBar.style.width = `${Math.min(100, (count / CALIBRATION_TARGET_STEPS) * 100)}%`;
+    calibNextBtn.disabled = count < CALIBRATION_MIN_STEPS;
+    calibNextBtn.textContent = isLastPhase ? "완료" : "다음";
+  }
+
+  /** Advances to the next calibration phase, or finalizes on the last one. */
+  function advanceCalibration() {
+    const isLastPhase = calibState.phaseIndex === CALIBRATION_PHASES.length - 1;
+    if (!isLastPhase) {
+      calibState.phaseIndex += 1;
+      // Re-settle the baseline for the new phase (posture/pace changes
+      // between flat ground and a staircase).
+      motionState.baseline = null;
+      motionState.aboveThreshold = false;
+      updateCalibrationUI();
+      return;
+    }
+    finishCalibration();
+  }
+
+  function finishCalibration() {
+    const avg = (arr) => arr.reduce((sum, v) => sum + v, 0) / arr.length;
+    const flatAvg = avg(calibState.samples.flat);
+    const upAvg = avg(calibState.samples.up);
+    const downAvg = avg(calibState.samples.down);
+
+    // The three activities should produce increasingly larger peaks. If
+    // they don't, the calibration isn't trustworthy (wrong phase walked,
+    // phone moved differently than usual, etc.) -- keep the previous
+    // thresholds rather than saving something broken, and let the user
+    // retry.
+    if (!(flatAvg < upAvg && upAvg < downAvg)) {
+      calibResult.hidden = false;
+      calibResult.classList.add("warning");
+      calibResult.textContent = `측정값이 예상 순서(평지 < 오르기 < 내리기)와 달라 저장하지 않았어요. (평지 ${flatAvg.toFixed(2)} · 오르기 ${upAvg.toFixed(2)} · 내리기 ${downAvg.toFixed(2)}) 각 단계에서 실제로 그 동작을 하셨는지 확인하고 처음부터 다시 시도해주세요.`;
+      calibNextBtn.hidden = true;
+      return;
+    }
+
+    settings.calibration = {
+      flatAvg,
+      upAvg,
+      downAvg,
+      flatWalkMaxPeak: (flatAvg + upAvg) / 2,
+      descendMinPeak: (upAvg + downAvg) / 2,
+      calibratedAt: Date.now(),
+    };
+    saveSettings();
+    stopCalibration();
+    renderCalibStatus();
+  }
+
+  function renderCalibStatus() {
+    const c = settings.calibration;
+    if (!c) {
+      calibStatusLine.textContent = "보정 안 됨 · 기본값(추정치)으로 동작 중";
+      return;
+    }
+    const fmt = new Intl.DateTimeFormat("ko-KR", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+    calibStatusLine.textContent = `✅ 보정됨 (${fmt.format(c.calibratedAt)}) · 평지 ${c.flatAvg.toFixed(
+      2
+    )} · 오르기 ${c.upAvg.toFixed(2)} · 내리기 ${c.downAvg.toFixed(2)}`;
+  }
+
   // Event listeners
   upBtn.addEventListener("click", () => addCount("up"));
   downBtn.addEventListener("click", () => addCount("down"));
@@ -699,6 +872,10 @@
   autoDirUpBtn.addEventListener("click", () => setAutoDirection("up"));
   autoDirDownBtn.addEventListener("click", () => setAutoDirection("down"));
 
+  calibrateBtn.addEventListener("click", startCalibration);
+  calibCancelBtn.addEventListener("click", stopCalibration);
+  calibNextBtn.addEventListener("click", advanceCalibration);
+
   resetDataBtn.addEventListener("click", () => {
     if (confirm("모든 운동 기록을 삭제할까요? 이 작업은 되돌릴 수 없습니다.")) {
       sessions = [];
@@ -712,5 +889,6 @@
   });
 
   weightInput.value = settings.weight;
+  renderCalibStatus();
   renderAll();
 })();
