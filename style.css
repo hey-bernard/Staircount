@@ -492,6 +492,14 @@ main {
   border-color: var(--down);
 }
 
+.motion-hint {
+  margin: 0;
+  font-size: 0.72rem;
+  color: var(--muted);
+  text-align: center;
+  line-height: 1.4;
+}
+
 .motion-status {
   font-size: 0.78rem;
   color: var(--muted);

@@ -63,9 +63,12 @@
         <button id="autoDetectBtn" class="ghost-btn">📡 자동 감지 시작 (가속도·자이로 센서)</button>
 
         <div class="auto-direction" id="autoDirectionGroup" hidden>
-          <button type="button" class="auto-dir-btn up active" id="autoDirUpBtn">⬆️ 지금 오르는 중</button>
-          <button type="button" class="auto-dir-btn down" id="autoDirDownBtn">⬇️ 지금 내리는 중</button>
+          <button type="button" class="auto-dir-btn up active" id="autoDirUpBtn">⬆️ 오르는 중</button>
+          <button type="button" class="auto-dir-btn down" id="autoDirDownBtn">⬇️ 내리는 중</button>
         </div>
+        <p class="motion-hint" id="motionHint" hidden>
+          진폭으로 평지 걷기/오르기/내리기를 자동 추정해요 (실험적) — 틀리면 위 버튼을 눌러 고쳐주세요.
+        </p>
 
         <div class="motion-status" id="motionStatus" hidden></div>
       </div>

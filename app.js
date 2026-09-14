@@ -35,13 +35,27 @@
 
   // Step detection from devicemotion's accelerationIncludingGravity magnitude:
   // a footstep shows up as a brief spike above a slow-moving baseline (which
-  // tracks gravity + the phone's average orientation). Direction (up/down)
-  // can't be derived from the accelerometer alone, so the user selects it.
+  // tracks gravity + the phone's average orientation).
   const STEP_THRESHOLD = 1.2; // m/s^2 deviation from baseline that counts as a step
   const STEP_RESET_THRESHOLD = 0.5; // deviation must fall back below this before the next step can fire
   const STEP_MIN_INTERVAL_MS = 250; // fastest plausible step cadence guard
   const BASELINE_SMOOTHING = 0.85; // low-pass filter coefficient tracking gravity/orientation
   const MOTION_DATA_TIMEOUT_MS = 3000; // how long to wait for a first sensor reading before warning
+
+  // Activity classification from each step's peak deviation (how far above
+  // baseline the spike reaches, not just that it crossed STEP_THRESHOLD):
+  // flat walking has the smallest vertical body-bob, climbing stairs a
+  // larger and more sustained one, and descending stairs the sharpest,
+  // highest-magnitude one -- each footfall catches the body's full weight
+  // against gravity, the same higher-impact landing that makes descending
+  // harder on the knees (see the knee-safety guide card). Thresholds are
+  // set relative to STEP_THRESHOLD and estimated from general gait
+  // biomechanics, not calibrated against a specific phone/gait -- treat
+  // classification as a best-effort estimate; the manual buttons below
+  // still work as a correction.
+  const FLAT_WALK_MAX_PEAK = STEP_THRESHOLD * 1.8; // below this: too small a bob to be a stair
+  const DESCEND_MIN_PEAK = STEP_THRESHOLD * 3.0; // at/above this: sharp enough to be a downward impact
+  const CLASSIFY_WINDOW_SIZE = 3; // average this many recent step peaks to smooth out one noisy sample
 
   const el = (id) => document.getElementById(id);
 
@@ -78,6 +92,7 @@
   const autoDirectionGroup = el("autoDirectionGroup");
   const autoDirUpBtn = el("autoDirUpBtn");
   const autoDirDownBtn = el("autoDirDownBtn");
+  const motionHint = el("motionHint");
   const motionStatus = el("motionStatus");
 
   const summaryModal = el("summaryModal");
@@ -96,9 +111,11 @@
 
   const motionState = {
     active: false,
-    direction: "up", // which counter detected steps add to
+    direction: "up", // last classified (or manually overridden) direction
     baseline: null,
     aboveThreshold: false,
+    stepPeak: 0, // max deviation reached during the current in-progress step
+    peakHistory: [], // recent steps' peak deviations, for smoothing classification
     lastStepAt: 0,
     detectedSteps: 0,
     firstEventAt: 0,
@@ -471,6 +488,9 @@
    * baseline that tracks gravity/orientation. Hysteresis (rise above
    * STEP_THRESHOLD, must fall back below STEP_RESET_THRESHOLD) plus a
    * minimum interval keeps one physical step from firing multiple counts.
+   * The step isn't counted/classified until it *finishes* (falls back
+   * below STEP_RESET_THRESHOLD), since classification needs the step's
+   * full peak height, not just the moment it crossed the threshold.
    */
   function handleDeviceMotion(event) {
     const acc = event.accelerationIncludingGravity;
@@ -496,20 +516,21 @@
       deviation > STEP_THRESHOLD &&
       now - motionState.lastStepAt > STEP_MIN_INTERVAL_MS
     ) {
-      // Step peak: count it and freeze the baseline so the spike itself
-      // doesn't drag the baseline toward it and mask the very next step.
+      // Step started: freeze the baseline (so the spike itself doesn't
+      // drag it) and start tracking how high this step's peak reaches.
       motionState.aboveThreshold = true;
       motionState.lastStepAt = now;
-      motionState.detectedSteps += 1;
-      addCount(motionState.direction);
-      updateMotionStatus();
+      motionState.stepPeak = deviation;
       return;
     }
 
     if (motionState.aboveThreshold) {
+      motionState.stepPeak = Math.max(motionState.stepPeak, deviation);
       if (deviation < STEP_RESET_THRESHOLD) {
+        // Step finished settling -- its full peak height is now known.
         motionState.aboveThreshold = false;
         motionState.baseline = motionState.baseline * BASELINE_SMOOTHING + magnitude * (1 - BASELINE_SMOOTHING);
+        registerStep(motionState.stepPeak);
       }
       return; // still settling from the last spike; hold the baseline
     }
@@ -517,10 +538,51 @@
     motionState.baseline = motionState.baseline * BASELINE_SMOOTHING + magnitude * (1 - BASELINE_SMOOTHING);
   }
 
-  function updateMotionStatus() {
+  /**
+   * Classifies a step from its (smoothed, recent-window) peak deviation.
+   * See the FLAT_WALK_MAX_PEAK/DESCEND_MIN_PEAK comment above for the
+   * reasoning; this is intentionally a simple, inspectable threshold rule
+   * rather than a black-box model, so its behavior can be explained and
+   * tuned once real device data is in.
+   */
+  function classifyActivity(peakHistory) {
+    const avgPeak = peakHistory.reduce((sum, p) => sum + p, 0) / peakHistory.length;
+    if (avgPeak < FLAT_WALK_MAX_PEAK) return "flat";
+    return avgPeak >= DESCEND_MIN_PEAK ? "down" : "up";
+  }
+
+  /** Runs once a step's peak is known: classifies it, then counts it (unless flat). */
+  function registerStep(peak) {
+    motionState.peakHistory.push(peak);
+    if (motionState.peakHistory.length > CLASSIFY_WINDOW_SIZE) {
+      motionState.peakHistory.shift();
+    }
+
+    motionState.detectedSteps += 1;
+    const activity = classifyActivity(motionState.peakHistory);
+
+    if (activity === "flat") {
+      updateMotionStatus("flat");
+      return;
+    }
+
+    setAutoDirection(activity);
+    addCount(activity);
+    updateMotionStatus(activity);
+  }
+
+  function updateMotionStatus(activity) {
     motionStatus.hidden = false;
     motionStatus.classList.remove("warning");
-    motionStatus.textContent = `센서 연결됨 · 감지된 걸음 ${motionState.detectedSteps}`;
+    const activityLabel =
+      activity === "flat"
+        ? "🚶 평지 걷기로 추정 (기록 안 함)"
+        : activity === "down"
+          ? "⬇️ 내려가는 중으로 추정"
+          : activity === "up"
+            ? "⬆️ 오르는 중으로 추정"
+            : "센서 연결됨";
+    motionStatus.textContent = `${activityLabel} · 감지된 걸음 ${motionState.detectedSteps}`;
   }
 
   async function startAutoDetect() {
@@ -557,6 +619,8 @@
     motionState.active = true;
     motionState.baseline = null;
     motionState.aboveThreshold = false;
+    motionState.stepPeak = 0;
+    motionState.peakHistory = [];
     motionState.detectedSteps = 0;
     motionState.gotFirstEvent = false;
 
@@ -573,6 +637,7 @@
     autoDetectBtn.textContent = "⏹️ 자동 감지 중지";
     autoDetectBtn.classList.add("active");
     autoDirectionGroup.hidden = false;
+    motionHint.hidden = false;
     motionStatus.hidden = false;
     motionStatus.classList.remove("warning");
     motionStatus.textContent = "센서 연결 중...";
@@ -586,6 +651,7 @@
     autoDetectBtn.textContent = "📡 자동 감지 시작 (가속도·자이로 센서)";
     autoDetectBtn.classList.remove("active");
     autoDirectionGroup.hidden = true;
+    motionHint.hidden = true;
     motionStatus.hidden = true;
   }
 
