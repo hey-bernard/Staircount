@@ -1,0 +1,51 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model WorkoutLog {
+  id           String   @id @default(cuid())
+  performedAt  DateTime @default(now())
+  exerciseName String
+  category     String
+  sets         Int?
+  reps         Int?
+  weightKg     Float?
+  durationMin  Float?
+  distanceKm   Float?
+  calories     Float?
+  rpe          Int?
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([performedAt])
+}
+
+model Goal {
+  id          String    @id @default(cuid())
+  title       String
+  category    String
+  description String?
+  targetDate  DateTime?
+  status      String    @default("active")
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model CoachMessage {
+  id        String   @id @default(cuid())
+  role      String
+  content   String
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}
