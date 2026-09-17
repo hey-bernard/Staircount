@@ -12,21 +12,37 @@
 ## 기술 스택
 
 - [Next.js 16](https://nextjs.org) (App Router, Server Actions, TypeScript)
-- [Prisma](https://www.prisma.io) + SQLite (로컬 파일 기반 DB)
+- [Prisma](https://www.prisma.io) + [Supabase](https://supabase.com) (Postgres, 배포 환경에서도 그대로 동작)
 - [Anthropic SDK](https://github.com/anthropics/anthropic-sdk-typescript) (`claude-opus-5`, tool use / agentic loop)
 - Tailwind CSS 4
 
-## 시작하기
+## 시작하기 (로컬 개발)
+
+1. [Supabase](https://supabase.com)에서 프로젝트를 만들고 **Project Settings → Database → Connection string**에서
+   - `DATABASE_URL` (포트 6543, Transaction pooler)
+   - `DIRECT_URL` (포트 5432, Direct connection)
+   두 개를 복사합니다. (자세한 형식은 `.env.example` 참고)
+2. 아래 명령을 실행합니다.
 
 ```bash
 npm install        # postinstall에서 prisma generate 자동 실행
 cp .env.example .env
-# .env에 ANTHROPIC_API_KEY를 채워주세요 (https://console.anthropic.com/)
-npm run db:migrate  # 최초 1회, SQLite DB 생성 및 마이그레이션 적용
+# .env에 DATABASE_URL, DIRECT_URL, ANTHROPIC_API_KEY를 채워주세요
+npx prisma migrate deploy   # 최초 1회, Supabase에 테이블 생성
 npm run dev
 ```
 
 [http://localhost:3000](http://localhost:3000) 에서 확인할 수 있습니다.
+
+## Vercel 배포
+
+1. **Supabase 프로젝트 준비**: 위 "시작하기"의 1번과 동일 (아직 안 만들었다면 [supabase.com](https://supabase.com)에서 무료로 생성, DB 비밀번호는 프로젝트 생성 시 직접 설정).
+2. **Vercel에 저장소 임포트**: [vercel.com/new](https://vercel.com/new)에서 이 GitHub 저장소(`hey-bernard/Staircount`)를 선택해 Import (Framework Preset은 Next.js로 자동 인식됩니다).
+3. **환경 변수 설정**: Vercel 프로젝트의 **Settings → Environment Variables**에 아래 3개를 추가합니다.
+   - `DATABASE_URL` — Supabase pooled connection string (포트 6543)
+   - `DIRECT_URL` — Supabase direct connection string (포트 5432)
+   - `ANTHROPIC_API_KEY` — Anthropic API 키
+4. **Deploy** 클릭. 빌드 시 `prisma migrate deploy`가 자동으로 실행되어 Supabase에 테이블이 생성된 뒤 앱이 빌드됩니다(`package.json`의 `build` 스크립트 참고). 이후 `main`(또는 배포 브랜치)에 푸시할 때마다 자동으로 재배포됩니다.
 
 ## 프로젝트 구조
 
